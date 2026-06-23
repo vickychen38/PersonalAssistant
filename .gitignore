@@ -1,0 +1,29 @@
+# 环境变量（含密钥，不提交）
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+*.egg
+
+# 虚拟环境
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# 图表临时文件
+charts/*.png
+charts/*.jpg
+charts/*.svg
+
+# macOS
+.DS_Store
+
+# 日志
+*.log

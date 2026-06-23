@@ -1,0 +1,263 @@
+"""
+L3 主路由逻辑 — 消息分发入口。
+
+优先级：
+  1. 斜杠命令（规则路由，不调用 AI）
+  2. 进行中 session 的 pending_action 确认
+  3. 进行中 session 继续交给对应 Agent
+  4. AI 意图判断 + 路由到子 Agent
+"""
+
+import logging
+import re
+from typing import Any, Dict, Optional
+
+from app.config import config
+
+logger = logging.getLogger("l3_router")
+
+# Agent 映射：agent_type → Agent 类
+AGENT_MAP = {}
+
+
+def _init_agent_map():
+    global AGENT_MAP
+    if AGENT_MAP:
+        return
+    from app.agents import TodoAgent, AccountingAgent, HealthAgent, RetrospectiveAgent
+    AGENT_MAP = {
+        "todo": TodoAgent,
+        "accounting": AccountingAgent,
+        "health": HealthAgent,
+        "retrospective": RetrospectiveAgent,
+    }
+
+
+# -----------------------------------------------------------
+# 斜杠命令处理（规则路由，不调用 AI）
+# -----------------------------------------------------------
+
+SLASH_COMMANDS = {
+    r"^/dnd\s+on$": ("dnd_on", "已开启勿扰模式"),
+    r"^/dnd\s+off$": ("dnd_off", "已关闭勿扰模式"),
+    r"^/city\s+(.+)$": ("city_set", "城市已设置为 {city}"),
+    r"^/config\s+morning\s+(\d{1,2}:\d{2})$": ("config_morning", "晨报时间已设置为 {time}"),
+    r"^/config\s+evening\s+(\d{1,2}:\d{2})$": ("config_evening", "晚间复盘时间已设置为 {time}"),
+}
+
+
+async def _handle_slash_command(user_text: str) -> Optional[str]:
+    """处理斜杠命令。返回回复文本，不匹配返回 None。"""
+    for pattern, (cmd_type, reply_template) in SLASH_COMMANDS.items():
+        match = re.match(pattern, user_text.strip(), re.IGNORECASE)
+        if not match:
+            continue
+
+        if cmd_type == "dnd_on":
+            from app.harness.l2_tools.system_tools import update_system_config
+            await update_system_config("dnd_mode", "true")
+            return "已开启勿扰模式。我会保持安静，只在必要时联系你。"
+
+        elif cmd_type == "dnd_off":
+            from app.harness.l2_tools.system_tools import update_system_config
+            await update_system_config("dnd_mode", "false")
+            return "已关闭勿扰模式。有什么需要随时找我！"
+
+        elif cmd_type == "city_set":
+            city = match.group(1).strip()
+            from app.harness.l2_tools.system_tools import update_system_config
+            await update_system_config("city", city)
+            return f"城市已设置为 {city}，我会用这个城市查天气。"
+
+        elif cmd_type == "config_morning":
+            new_time = match.group(1)
+            from app.harness.l2_tools.system_tools import update_system_config
+            await update_system_config("morning_briefing_time", new_time)
+            from app.scheduler.setup import reschedule_time_job
+            await reschedule_time_job("morning_briefing", new_time)
+            return f"晨报时间已更新为 {new_time}，明早按时推送。"
+
+        elif cmd_type == "config_evening":
+            new_time = match.group(1)
+            from app.harness.l2_tools.system_tools import update_system_config
+            await update_system_config("evening_review_time", new_time)
+            from app.scheduler.setup import reschedule_time_job
+            await reschedule_time_job("evening_review", new_time)
+            return f"晚间复盘时间已更新为 {new_time}。"
+
+    return None
+
+
+# -----------------------------------------------------------
+# AI 意图路由
+# -----------------------------------------------------------
+
+ROUTER_PROMPT = """你是意图路由助手。根据用户消息判断应该交给哪个 Agent 处理。
+
+可用的 Agent:
+- todo: 任务、待办、目标、计划相关
+- accounting: 花钱、记账、预算、消费相关
+- health: 体重、体脂、围度、健康数据相关
+- retrospective: 复盘、总结、回顾、情绪相关
+
+回复规则:
+- 如果用户同时有多个意图，给出优先级列表
+- 如果无法判断，回复 "unclear"
+- 只回复 Agent 名或 "unclear"，不解释。"""
+
+
+async def ai_route(user_text: str) -> str:
+    """
+    调用 DeepSeek Flash 判断意图，返回 Agent 名称。
+
+    返回: "todo" | "accounting" | "health" | "retrospective" | "unclear"
+    """
+    try:
+        from app.services.deepseek import chat
+        response = await chat(
+            system_prompt=ROUTER_PROMPT,
+            messages=[{"role": "user", "content": user_text}],
+            model="flash",
+            max_tokens=20,
+        )
+        result = response.get("content", "").strip().lower()
+        if result in ("todo", "accounting", "health", "retrospective"):
+            return result
+        return "unclear"
+    except Exception as e:
+        logger.error(f"AI 路由失败: {e}")
+        return "unclear"
+
+
+# -----------------------------------------------------------
+# 主入口
+# -----------------------------------------------------------
+
+
+async def route_message(
+    user_text: str,
+    session: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    消息路由主入口。
+
+    返回:
+        {
+            "route_type": "slash_command" | "pending_confirm" | "session_continue" | "ai_route",
+            "agent_type": str | None,
+            "reply": str | None,
+            "pending_action": dict | None,
+        }
+    """
+    # 1. 斜杠命令
+    cmd_reply = await _handle_slash_command(user_text)
+    if cmd_reply is not None:
+        return {"route_type": "slash_command", "agent_type": None, "reply": cmd_reply}
+
+    # 2. 处理 pending_action 确认
+    if session and session.get("metadata", {}).get("pending_action"):
+        from app.harness.l4_memory.session_manager import handle_pending_confirmation
+        result = await handle_pending_confirmation(user_text, session)
+        if result["handled"] and result["action"] in ("confirmed", "cancelled"):
+            pending = result["pending"]
+            if result["action"] == "confirmed":
+                # 执行 pending 操作
+                reply = await _execute_pending_action(pending)
+                return {"route_type": "pending_confirm", "agent_type": None, "reply": reply}
+            else:
+                return {"route_type": "pending_confirm", "agent_type": None, "reply": "好的，已取消。"}
+        elif result["handled"] and result["action"] == "unclear":
+            # 无法判断确认/取消，正常处理消息
+            pass
+
+    # 3. 进行中 session 继续
+    if session and session.get("session_type") != "casual":
+        session_type = session["session_type"]
+        agent_map = {
+            "evening_review": "retrospective",
+            "retrospective_daily": "retrospective",
+            "retrospective_weekly": "retrospective",
+            "retrospective_monthly": "retrospective",
+        }
+        agent_type = agent_map.get(session_type, "todo")
+        return {"route_type": "session_continue", "agent_type": agent_type, "reply": None}
+
+    # 4. AI 意图路由
+    agent_type = await ai_route(user_text)
+    if agent_type == "unclear":
+        return {
+            "route_type": "ai_route",
+            "agent_type": None,
+            "reply": "你是想聊任务安排、记账、健康数据，还是复盘总结呢？",
+        }
+
+    return {"route_type": "ai_route", "agent_type": agent_type, "reply": None}
+
+
+async def dispatch_to_agent(
+    agent_type: str,
+    user_text: str,
+    session: Optional[Dict[str, Any]] = None,
+    triggered_by: str = "user",
+) -> str:
+    """
+    将消息分发给对应 Agent 并返回回复。
+
+    参数:
+        agent_type: Agent 类型
+        user_text: 用户消息
+        session: 当前会话
+        triggered_by: "user" | "scheduler"
+
+    返回:
+        Agent 回复文本
+    """
+    _init_agent_map()
+    agent_cls = AGENT_MAP.get(agent_type)
+    if agent_cls is None:
+        return f"抱歉，我暂时不知道如何处理这类请求。"
+
+    try:
+        agent = agent_cls()
+        reply = await agent.run(user_text, session, triggered_by)
+        return reply
+    except Exception as e:
+        logger.error(f"Agent [{agent_type}] 执行失败: {e}")
+        return "抱歉，处理请求时遇到了问题，请稍后再试。"
+
+
+async def _execute_pending_action(pending: Dict[str, Any]) -> str:
+    """执行 confirmed pending_action。"""
+    action_type = pending.get("type", "")
+    params = pending.get("params", {})
+    description = pending.get("description", "")
+
+    try:
+        if action_type == "update_todo_recurrence_rule":
+            from app.harness.l2_tools.todo_tools import update_todo_recurrence_rule
+            result = await update_todo_recurrence_rule(
+                todo_id=params["todo_id"],
+                new_rule=params["new_rule"],
+            )
+            if "error" not in result:
+                return f"好的，已{description}。"
+            return f"操作失败: {result['error']}"
+
+        elif action_type == "update_budget_category":
+            from app.harness.l2_tools.accounting_tools import update_budget_category, UpdateBudgetCategoryInput
+            result = await update_budget_category(params["id"], UpdateBudgetCategoryInput(**params))
+            return f"好的，已更新预算类目。"
+
+        elif action_type == "create_recurring_todos_batch":
+            from app.harness.l2_tools.todo_tools import create_todo, CreateTodoInput
+            for todo_data in params.get("todos", []):
+                await create_todo(CreateTodoInput(**todo_data))
+            return f"好的，已创建 {len(params.get('todos', []))} 个任务。"
+
+        else:
+            logger.warning(f"未知 pending_action type: {action_type}")
+            return f"已执行操作: {description}"
+
+    except Exception as e:
+        logger.error(f"执行 pending_action 失败: {e}")
+        return f"抱歉，执行操作时出现了问题: {e}"

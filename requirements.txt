@@ -1,0 +1,30 @@
+# 逐念 — 个人 AI 助理系统
+# Python 3.11+
+
+# Web 框架
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+
+# 数据库
+sqlalchemy[asyncio]>=2.0.30
+asyncpg>=0.29.0
+greenlet>=3.0
+
+# 数据校验
+pydantic>=2.7.0
+pydantic-settings>=2.3.0
+
+# AI 模型调用 (DeepSeek API，OpenAI 兼容)
+openai>=1.30.0
+
+# 定时任务
+apscheduler>=3.10.0
+
+# 图表生成
+matplotlib>=3.8.0
+
+# HTTP 客户端 (cc-connect、和风天气)
+httpx>=0.27.0
+
+# 环境变量
+python-dotenv>=1.0.0
