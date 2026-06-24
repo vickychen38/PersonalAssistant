@@ -13,7 +13,7 @@ import asyncio
 import logging
 from typing import TypeVar, Callable, Awaitable, Any
 
-from app.harness.l6_recovery.circuit_breaker import circuit_breaker
+from app.harness.l6_recovery.circuit_breaker import circuit_breaker, CircuitBreakerOpenError
 
 logger = logging.getLogger("retry")
 
@@ -53,6 +53,8 @@ async def retry_with_backoff(
     for i, delay in enumerate(RETRY_DELAYS):
         try:
             return await fn(*args, **kwargs)
+        except CircuitBreakerOpenError:
+            raise
         except Exception as e:
             last_error = e
             logger.warning(
@@ -69,6 +71,8 @@ async def retry_with_backoff(
 
     try:
         return await fn(*args, **kwargs)
+    except CircuitBreakerOpenError:
+        raise
     except Exception as e:
         last_error = e
         await circuit_breaker.record_failure()
