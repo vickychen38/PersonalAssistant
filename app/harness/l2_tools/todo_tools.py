@@ -318,6 +318,10 @@ async def update_goal_status(goal_id: int, status: str) -> Dict[str, Any]:
         goal_id: 目标 ID
         status: active / paused / completed / abandoned
     """
+    VALID_STATUSES = {"active", "paused", "completed", "abandoned"}
+    if status not in VALID_STATUSES:
+        return {"error": f"非法 status: {status}，合法值: {VALID_STATUSES}"}
+
     async with async_session_factory() as session:
         set_clause = ["status = :status"]
         if status == "completed":

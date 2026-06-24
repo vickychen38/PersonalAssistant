@@ -107,11 +107,13 @@ async def generate_plan(
             raw = raw.split("\n", 1)[-1].split("```")[0]
         plan = json.loads(raw)
 
-        # L5 规划检查
+        # L5 规划检查 — 获取已有任务用于冲突检测
         from app.harness.l5_evaluation.checkers import check_plan_conflicts
+        from app.harness.l2_tools.todo_tools import get_todos_by_date
+        existing_tasks = await get_todos_by_date()
         check_result = check_plan_conflicts(
             plan.get("todos", []),
-            [],  # 新计划，无已有任务
+            existing_tasks,
         )
 
         suggestions = plan.get("suggestions", "")
@@ -162,6 +164,7 @@ async def execute_plan(plan: Dict[str, Any]) -> Dict[str, Any]:
                 description=g.get("description"),
                 category=g.get("category"),
             ))
+            created_goals += 1
         except Exception as e:
             logger.error(f"创建 goal 失败: {e}")
 

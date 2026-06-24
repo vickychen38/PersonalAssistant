@@ -64,6 +64,7 @@ CREATE TABLE todo_instances (
 
 CREATE INDEX idx_todo_instances_date_status ON todo_instances(date, status);
 CREATE INDEX idx_todo_instances_todo_id_date ON todo_instances(todo_id, date);
+CREATE UNIQUE INDEX idx_todo_instances_unique_todo_date ON todo_instances(todo_id, date);
 
 -- ============================================
 -- 4. 每日情绪状态表
