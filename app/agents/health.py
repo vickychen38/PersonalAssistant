@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from app.agents.base import BaseAgent
+from app.config import config
 from app.services.deepseek import chat_with_tools
 from app.harness.l2_tools.registry import get_agent_tools
 
@@ -56,7 +57,7 @@ class HealthAgent(BaseAgent):
         ctx = await self.get_user_context()
         if ctx:
             system_prompt += f"\n\n{ctx}"
-        system_prompt += f"\n用户身高: {__import__('app.config').config.user_height_cm}cm"
+        system_prompt += f"\n用户身高: {config.user_height_cm}cm"
 
         allowed = get_agent_tools(self.agent_type)
         tool_schemas = [{"type": "function", "function": {"name": n, "description": f"Tool: {n}",

@@ -4,6 +4,7 @@ SQLAlchemy 2.0 async 引擎 + session 工厂。
 使用 asyncpg 驱动连接 PostgreSQL。
 """
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 
@@ -53,9 +54,7 @@ async def check_db_connection() -> bool:
     """启动时检查数据库连通性。"""
     try:
         async with engine.connect() as conn:
-            await conn.execute(
-                __import__("sqlalchemy").text("SELECT 1")
-            )
+            await conn.execute(text("SELECT 1"))
         return True
     except Exception as e:
         import logging

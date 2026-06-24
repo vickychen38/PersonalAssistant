@@ -12,7 +12,7 @@
 """
 
 import logging
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timezone, timedelta
 
 from sqlalchemy import text
 
@@ -139,7 +139,6 @@ async def daily_todo_gen():
                         effective_duration = rule.get("duration_minutes")
                     if effective_time and effective_duration:
                         import json
-                        from datetime import timedelta
                         pt = _parse_time(effective_time)
                         followup_dt = datetime.combine(today, pt) + timedelta(minutes=effective_duration)
                         await session.execute(
@@ -589,7 +588,7 @@ async def monthly_retro_check():
         next_month_first = date(today.year + 1, 1, 1)
     else:
         next_month_first = date(today.year, today.month + 1, 1)
-    last_day = next_month_first - __import__('datetime').timedelta(days=1)
+    last_day = next_month_first - timedelta(days=1)
 
     if today != last_day:
         return
