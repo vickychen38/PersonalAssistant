@@ -54,18 +54,32 @@ def _should_compress(messages: List[Dict[str, str]]) -> bool:
     return len(messages) > COMPRESS_THRESHOLD
 
 
+def _get_encoder():
+    """获取 tiktoken 编码器，失败返回 None 走 fallback。"""
+    try:
+        import tiktoken
+        return tiktoken.get_encoding("cl100k_base")
+    except Exception:
+        return None
+
+
 def _estimate_tokens(messages: List[Dict[str, str]], system_prompt: str = "") -> int:
-    """粗略估算消息列表的 token 数（中文约 1.5 字符/token）。"""
-    total_chars = len(system_prompt)
+    """用 tiktoken 精确估算消息 token 数，失败时回退到字符数估算。"""
+    enc = _get_encoder()
+    if enc is None:
+        total_chars = len(system_prompt)
+        for msg in messages:
+            total_chars += len(json.dumps(msg, ensure_ascii=False))
+        return int(total_chars / 1.5)
+    total_text = system_prompt
     for msg in messages:
-        total_chars += len(json.dumps(msg, ensure_ascii=False))
-    return int(total_chars / 1.5)
+        total_text += json.dumps(msg, ensure_ascii=False)
+    return len(enc.encode(total_text))
 
 
 def _token_ratio(messages: List[Dict[str, str]], system_prompt: str = "") -> float:
-    """计算 token 相对上下文窗口的比例。"""
+    """计算 token 相对上下文窗口的比例。DeepSeek 128k，保守基线 64k。"""
     estimated = _estimate_tokens(messages, system_prompt)
-    # DeepSeek 窗口默认为 128k，保守取 64k 作为阈值基线
     return estimated / 64_000
 
 
