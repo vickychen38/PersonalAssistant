@@ -166,9 +166,10 @@ async def refresh_schedule_from_config():
         # 周/月复盘跟随晚间时间偏移 5/10 分钟
         e_h, e_m = int(evening_time.split(":")[0]), int(evening_time.split(":")[1])
         w_m = (e_m + 5) % 60
-        w_h = e_h + (e_m + 5) // 60
+        w_h = (e_h + (e_m + 5) // 60) % 24
         await _reschedule_job_raw("weekly_retro_check", w_h, w_m)
-        m_h2, m_m2 = e_h + (e_m + 10) // 60, (e_m + 10) % 60
+        m_h2 = (e_h + (e_m + 10) // 60) % 24
+        m_m2 = (e_m + 10) % 60
         await _reschedule_job_raw("monthly_retro_check", m_h2, m_m2)
         logger.info(f"调度配置已更新: 晨报={morning_time} 晚间={evening_time}")
     except Exception as e:
