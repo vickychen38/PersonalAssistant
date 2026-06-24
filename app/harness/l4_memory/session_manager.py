@@ -112,7 +112,7 @@ async def append_message(
     async with async_session_factory() as s:
         # 读取当前消息
         result = await s.execute(
-            text("SELECT messages FROM conversation_sessions WHERE id = :id"),
+            text("SELECT messages FROM conversation_sessions WHERE id = :id FOR UPDATE"),
             {"id": session_id},
         )
         row = result.fetchone()
