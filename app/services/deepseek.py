@@ -82,14 +82,14 @@ async def _call_api(
     max_tokens: int = 4096,
 ) -> dict:
     """单次 API 调用（不含工具循环）。"""
-    if circuit_breaker.is_open:
+    if await circuit_breaker.is_open():
         raise CircuitBreakerOpenError("熔断器开启，拒绝请求")
 
     client = get_client()
     params = _build_params(system_prompt, messages, tools, model, max_tokens)
 
     response = await client.chat.completions.create(**params)
-    circuit_breaker.record_success()
+    await circuit_breaker.record_success()
 
     # 返回第一个 choice
     choice = response.choices[0]

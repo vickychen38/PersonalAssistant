@@ -60,7 +60,7 @@ async def retry_with_backoff(
                 f"{delay}s 后重试: {e}"
             )
             # 通知熔断器
-            circuit_breaker.record_failure()
+            await circuit_breaker.record_failure()
             await asyncio.sleep(delay)
 
     # 全部重试失败后等待 30 秒，最后尝试一次
@@ -71,7 +71,7 @@ async def retry_with_backoff(
         return await fn(*args, **kwargs)
     except Exception as e:
         last_error = e
-        circuit_breaker.record_failure()
+        await circuit_breaker.record_failure()
         logger.error(f"DeepSeek 最终重试也失败: {e}")
         raise RetryExhaustedError(
             f"DeepSeek API 调用失败，已重试 {MAX_RETRIES + 1} 次"

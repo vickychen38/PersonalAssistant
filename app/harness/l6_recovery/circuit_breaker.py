@@ -7,9 +7,9 @@ DeepSeek API 熔断器。
   - 60 秒后自动恢复
 """
 
+import asyncio
 import time
 import logging
-from threading import Lock
 
 logger = logging.getLogger("circuit_breaker")
 
@@ -19,18 +19,17 @@ COOLDOWN_SECONDS = 60      # 熔断冷却时间
 
 
 class CircuitBreaker:
-    """简单的计数式熔断器，线程安全。"""
+    """异步熔断器，使用 asyncio.Lock 防止阻塞事件循环。"""
 
     def __init__(self):
-        self._lock = Lock()
+        self._lock = asyncio.Lock()
         self._failure_count = 0
         self._last_failure_time: float = 0.0
         self._open_since: float | None = None  # 熔断开始时间
 
-    @property
-    def is_open(self) -> bool:
+    async def is_open(self) -> bool:
         """熔断是否开启（不允许请求）。"""
-        with self._lock:
+        async with self._lock:
             if self._open_since is None:
                 return False
             # 检查是否已过冷却期
@@ -41,14 +40,13 @@ class CircuitBreaker:
                 return False
             return True
 
-    @property
-    def can_retry(self) -> bool:
+    async def can_retry(self) -> bool:
         """是否允许重试（熔断未开启）。"""
-        return not self.is_open
+        return not await self.is_open()
 
-    def record_failure(self) -> None:
+    async def record_failure(self) -> None:
         """记录一次失败。"""
-        with self._lock:
+        async with self._lock:
             self._failure_count += 1
             self._last_failure_time = time.monotonic()
 
@@ -59,15 +57,15 @@ class CircuitBreaker:
                     f"冷却 {COOLDOWN_SECONDS}s"
                 )
 
-    def record_success(self) -> None:
+    async def record_success(self) -> None:
         """记录一次成功，重置计数器。"""
-        with self._lock:
+        async with self._lock:
             self._failure_count = 0
             self._open_since = None
 
-    def get_status(self) -> dict:
+    async def get_status(self) -> dict:
         """获取熔断器状态（监控用）。"""
-        with self._lock:
+        async with self._lock:
             return {
                 "open": self._open_since is not None and not (
                     time.monotonic() - self._open_since >= COOLDOWN_SECONDS
