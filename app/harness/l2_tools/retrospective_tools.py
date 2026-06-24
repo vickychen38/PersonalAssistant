@@ -129,35 +129,8 @@ async def get_retrospectives(
         ]
 
 
-async def get_recent_agent_actions(limit: int = 20) -> List[Dict[str, Any]]:
-    """查询最近的 Agent 工具调用日志（L5 观测）。"""
-    async with async_session_factory() as session:
-        result = await session.execute(
-            text("""
-                SELECT id, session_id, agent_type, tool_name, input, output,
-                       success, error_msg, duration_ms, created_at
-                FROM agent_action_logs
-                ORDER BY created_at DESC
-                LIMIT :limit
-            """),
-            {"limit": limit},
-        )
-        return [
-            {
-                "id": r[0],
-                "session_id": r[1],
-                "agent_type": r[2],
-                "tool_name": r[3],
-                "input": r[4],
-                "output": r[5],
-                "success": r[6],
-                "error_msg": r[7],
-                "duration_ms": r[8],
-                "created_at": str(r[9]),
-            }
-            for r in result.fetchall()
-        ]
-
+# get_recent_agent_actions 已迁移至 harness/l2_tools/observation_tools.py
+from app.harness.l2_tools.observation_tools import get_recent_agent_actions  # noqa: F401
 
 # ---- Write Tools ----
 
