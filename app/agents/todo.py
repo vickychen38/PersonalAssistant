@@ -24,8 +24,7 @@ def _init_tool_map():
     global TOOL_MAP
     if TOOL_MAP:
         return
-    from app.harness.l2_tools import todo_tools, knowledge_tools, system_tools
-    from app.services import weather as weather_svc
+    from app.harness.l2_tools import todo_tools, knowledge_tools, system_tools, weather as weather_l2
     from app.services.cconnect import send_text
 
     TOOL_MAP = {
@@ -59,7 +58,7 @@ def _init_tool_map():
         ),
         "get_user_knowledge": lambda args: knowledge_tools.get_user_knowledge(args.get("category")),
         # 天气
-        "get_weather": lambda args: weather_svc.get_weather(args.get("city")),
+        "get_weather": lambda args: weather_l2.get_weather(args.get("city")),
         # 图表
         "generate_chart": lambda args: _chart_stub(args),
         # 计划任务

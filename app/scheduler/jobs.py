@@ -260,7 +260,7 @@ async def morning_briefing():
     # 6. 天气
     weather_info = None
     try:
-        from app.services.weather import get_weather
+        from app.harness.l2_tools.weather import get_weather
         weather_info = await get_weather()
         if "error" in weather_info:
             weather_info = None
