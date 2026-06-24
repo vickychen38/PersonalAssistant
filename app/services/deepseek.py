@@ -59,11 +59,18 @@ def _build_params(
     # 截取最近的消息
     recent_messages = messages[-MAX_MESSAGES:]
 
+    # 过滤非标准字段（如 session 存储的 ts 等），仅保留 OpenAI 兼容字段
+    ALLOWED_MSG_KEYS = {"role", "content", "name", "tool_calls", "tool_call_id"}
+    clean_messages = [
+        {k: v for k, v in msg.items() if k in ALLOWED_MSG_KEYS}
+        for msg in recent_messages
+    ]
+
     params: Dict[str, Any] = {
         "model": _resolve_model(model),
         "messages": [
             {"role": "system", "content": system_prompt},
-            *recent_messages,
+            *clean_messages,
         ],
         "max_tokens": max_tokens,
     }
