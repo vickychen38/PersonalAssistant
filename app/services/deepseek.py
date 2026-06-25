@@ -54,6 +54,7 @@ def _build_params(
     tools: List[Dict[str, Any]] | None,
     model: str,
     max_tokens: int = 4096,
+    disable_thinking: bool = False,
 ) -> Dict[str, Any]:
     """构建 API 请求参数，控制消息数量不超过 MAX_MESSAGES。"""
     # 截取最近的消息
@@ -77,6 +78,8 @@ def _build_params(
 
     if tools:
         params["tools"] = tools
+    if disable_thinking:
+        params["extra_body"] = {"thinking": {"type": "disabled"}}
 
     return params
 
@@ -87,13 +90,14 @@ async def _call_api(
     tools: List[Dict[str, Any]] | None,
     model: str,
     max_tokens: int = 4096,
+    disable_thinking: bool = False,
 ) -> dict:
     """单次 API 调用（不含工具循环）。"""
     if await circuit_breaker.is_open():
         raise CircuitBreakerOpenError("熔断器开启，拒绝请求")
 
     client = get_client()
-    params = _build_params(system_prompt, messages, tools, model, max_tokens)
+    params = _build_params(system_prompt, messages, tools, model, max_tokens, disable_thinking)
 
     response = await client.chat.completions.create(**params)
     await circuit_breaker.record_success()
@@ -113,6 +117,7 @@ async def chat(
     tools: List[Dict[str, Any]] | None = None,
     model: str = "flash",
     max_tokens: int = 4096,
+    disable_thinking: bool = False,
 ) -> dict:
     """
     DeepSeek 对话入口 — 包装了重试逻辑。
@@ -122,7 +127,7 @@ async def chat(
     """
     try:
         return await retry_with_backoff(
-            _call_api, system_prompt, messages, tools, model, max_tokens
+            _call_api, system_prompt, messages, tools, model, max_tokens, disable_thinking
         )
     except RetryExhaustedError:
         logger.error("DeepSeek API 调用失败")
