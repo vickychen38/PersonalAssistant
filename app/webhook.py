@@ -69,17 +69,25 @@ async def _handle_message(body: dict, send_via_cc: bool = False) -> str:
     返回:
         当 send_via_cc=False 时，返回 AI 回复文本
     """
+    from app.services.trace import Trace
+
+    msg_id = body.get("message_id", "")
+    trace = Trace(message_id=msg_id)
+
     try:
         user_text = body.get("content", "").strip()
         if not user_text:
             user_text = body.get("text", "").strip()
         if not user_text:
+            logger.warning(f"[trace={trace.trace_id}] 收到空消息")
             return ""
 
         session_key = body.get("session_key", "")
         project = body.get("project", "")
         from_user = body.get("from_user", "")
         context_token = body.get("context_token", "")
+
+        trace.log("webhook", f"收到消息", user=from_user, text=user_text[:80], sync=str(send_via_cc))
 
         # 保存 webhook 上下文（含 context_token），供调度器主动推送使用
         from app.services.context_store import save_webhook_context
@@ -93,23 +101,35 @@ async def _handle_message(body: dict, send_via_cc: bool = False) -> str:
         # 获取或创建 session
         from app.harness.l4_memory.session_manager import get_active_session, create_session
         session = await get_active_session()
+        if session:
+            trace.log("session", f"复用会话", session_id=session["id"])
+        else:
+            trace.log("session", "无活跃会话，将新建")
 
         # 路由消息
         from app.harness.l3_orchestration.router import route_message, dispatch_to_agent
-        route_result = await route_message(user_text, session)
+        route_result = await route_message(user_text, session, trace=trace)
 
         # 如果路由已返回回复（斜杠命令等）
         if route_result.get("reply"):
             reply = route_result["reply"]
+            trace.log("router", "斜杠命令直接回复", reply=reply[:60])
             if send_via_cc:
                 from app.services.cconnect import send_text
-                await send_text(reply, session_key=session_key, project=project)
+                ok = await send_text(reply, session_key=session_key, project=project)
+                trace.log("cconnect", "发送回复", success=str(ok))
+            trace.done("斜杠命令处理完成")
             return reply
 
         # 获取 Agent 回复
         agent_type = route_result.get("agent_type")
         if agent_type:
-            reply = await dispatch_to_agent(agent_type, user_text, session)
+            trace.log("router", f"路由到 Agent", agent=agent_type)
+
+            from app.harness.l3_orchestration.router import dispatch_to_agent
+            reply = await dispatch_to_agent(agent_type, user_text, session, trace=trace)
+
+            trace.log("agent", "Agent 回复", reply=reply[:60], agent=agent_type)
 
             # 更新会话消息
             if session:
@@ -118,19 +138,24 @@ async def _handle_message(body: dict, send_via_cc: bool = False) -> str:
                 await append_message(session["id"], "assistant", reply)
             else:
                 session = await create_session(session_type="casual")
+                trace.log("session", "新建会话", session_id=session["id"])
                 from app.harness.l4_memory.session_manager import append_message
                 await append_message(session["id"], "user", user_text)
                 await append_message(session["id"], "assistant", reply)
 
             if send_via_cc:
                 from app.services.cconnect import send_text
-                await send_text(reply, session_key=session_key, project=project)
+                ok = await send_text(reply, session_key=session_key, project=project)
+                trace.log("cconnect", "发送回复", success=str(ok))
+            trace.done(f"回复已{'发送' if send_via_cc else '返回'}")
             return reply
 
+        trace.log("router", "无法路由", text=user_text[:60])
+        trace.done("无 Agent 匹配，丢弃")
         return ""
 
     except Exception as e:
-        logger.error(f"消息处理失败: {e}", exc_info=True)
+        logger.error(f"[trace={trace.trace_id}] 消息处理失败: {e}", exc_info=True)
         error_msg = "抱歉，处理消息时遇到了问题，请稍后再试。"
         if send_via_cc:
             try:
@@ -138,4 +163,5 @@ async def _handle_message(body: dict, send_via_cc: bool = False) -> str:
                 await send_text(error_msg, session_key=body.get("session_key", ""), project=body.get("project", ""))
             except Exception:
                 pass
+        trace.done(f"异常: {e}")
         return error_msg

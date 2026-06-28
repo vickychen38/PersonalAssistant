@@ -54,7 +54,7 @@ async def daily_todo_gen():
         - frequency=every_n_days → 从创建日起每隔 n 天生成
     """
     today = date.today()
-    logger.info(f"开始生成 {today} 的待办实例...")
+    logger.info(f"[调度] daily_todo_gen 开始: date={today}")
 
     async with async_session_factory() as session:
         # 查询所有 active 的 todos（含时间和时长信息）
@@ -187,7 +187,7 @@ async def morning_briefing():
       7. 发送到微信
     """
     today = date.today()
-    logger.info(f"生成 {today} 晨报...")
+    logger.info(f"[调度] morning_briefing 开始: date={today}")
 
     # 1. 查询今天的实例
     async with async_session_factory() as session:
@@ -446,7 +446,7 @@ async def evening_review():
     """
     import json
     today = _today()
-    logger.info(f"触发 {today} 晚间复盘...")
+    logger.info(f"[调度] evening_review 开始: date={today}")
 
     async with async_session_factory() as session:
         # 查询今日实例

@@ -115,12 +115,12 @@ async def _post_to_cc(payload: dict, timeout: int = 30) -> bool:
                     resp = await client.post(url, json=payload)
                     resp.raise_for_status()
 
-            logger.info("cc-connect 消息发送成功")
+            logger.info(f"cc-connect 发送成功: text='{text[:60]}' session_key={session_key[:20] if session_key else '无'}...")
             return True
 
         except httpx.HTTPError as e:
             logger.warning(
-                f"cc-connect 发送失败 (第 {attempt}/{SEND_RETRIES} 次): {e}"
+                f"cc-connect 发送失败 (第 {attempt}/{SEND_RETRIES} 次): {type(e).__name__} | text='{text[:60]}'"
             )
             if attempt < SEND_RETRIES:
                 await asyncio.sleep(SEND_RETRY_DELAY)

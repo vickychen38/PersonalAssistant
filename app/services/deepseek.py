@@ -190,8 +190,11 @@ async def chat_with_tools(
         最终文本回复（工具已全部执行完毕）
     """
     local_messages = list(messages)  # 浅拷贝，避免修改原始列表
+    tool_call_count = 0
 
     for round_num in range(1, MAX_TOOL_ROUNDS + 1):
+        logger.info(f"DeepSeek 第 {round_num}/{MAX_TOOL_ROUNDS} 轮请求, model={_resolve_model(model)}, "
+                    f"messages={len(local_messages)}, tools={len(tool_schemas)}")
         response = await chat(
             system_prompt=system_prompt,
             messages=local_messages,
@@ -202,6 +205,9 @@ async def chat_with_tools(
 
         # 没有工具调用 → 直接返回
         if not response["tool_calls"]:
+            finish = response.get("finish_reason", "?")
+            content_len = len(response.get("content", "") or "")
+            logger.info(f"DeepSeek 最终回复: finish={finish}, content_len={content_len}, rounds={round_num}")
             return response
 
         # 执行工具调用
@@ -214,7 +220,7 @@ async def chat_with_tools(
             except json.JSONDecodeError:
                 func_args = {}
 
-            logger.info(f"工具调用 [{round_num}]: {func_name}({func_args})")
+            logger.info(f"工具调用 [round={round_num}]: {func_name}({json.dumps(func_args, ensure_ascii=False)})")
 
             try:
                 result = await tool_executor(func_name, func_args)
