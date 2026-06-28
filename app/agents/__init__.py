@@ -4,6 +4,7 @@ from app.agents.todo import TodoAgent
 from app.agents.accounting import AccountingAgent
 from app.agents.health import HealthAgent
 from app.agents.retrospective import RetrospectiveAgent
+from app.agents.chat import ChatAgent
 
 __all__ = [
     "BaseAgent",
@@ -11,4 +12,5 @@ __all__ = [
     "AccountingAgent",
     "HealthAgent",
     "RetrospectiveAgent",
+    "ChatAgent",
 ]

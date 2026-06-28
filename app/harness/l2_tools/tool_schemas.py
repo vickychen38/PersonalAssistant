@@ -691,6 +691,25 @@ GENERATE_CHART = {
     },
 }
 
+# ============================================================
+# Chat 工具
+# ============================================================
+
+WEB_SEARCH = {
+    "name": "web_search",
+    "description": "在互联网上搜索信息。当用户问事实性问题、查资料、问新闻时使用。返回摘要和相关链接",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "搜索关键词，英文更准确。如 python latest version / 北京今天天气 / iPhone 17 release date",
+            },
+        },
+        "required": ["query"],
+    },
+}
+
 SEND_MESSAGE = {
     "name": "send_message",
     "description": "向用户发送文本消息。每条回复必须以此工具结尾",
@@ -746,6 +765,8 @@ ALL_TOOL_SCHEMAS = {
     "get_weather": GET_WEATHER,
     "generate_chart": GENERATE_CHART,
     "send_message": SEND_MESSAGE,
+    # Chat
+    "web_search": WEB_SEARCH,
 }
 
 
