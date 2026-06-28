@@ -35,9 +35,9 @@ class Trace:
 
     def log(self, stage: str, detail: str = "", **kwargs) -> None:
         """记录一个步骤。stage 是阶段名（webhook/router/session/agent/deepseek/cconnect/scheduler）。"""
-        elapsed_ms = int((time.monotonic() - self._start) * 1000)
+        elapsed_ms = (time.monotonic() - self._start) * 1000
         extras = " ".join(f"{k}={v}" for k, v in kwargs.items() if v)
-        msg = f"[trace={self.trace_id}] [{stage}] +{elapsed_ms}ms {detail}"
+        msg = f"[trace={self.trace_id}] [{stage}] +{elapsed_ms:.1f}ms {detail}"
         if extras:
             msg += f" | {extras}"
         logger.info(msg)
@@ -45,13 +45,13 @@ class Trace:
 
     def done(self, result: str = "") -> None:
         """标记链路结束。"""
-        total_ms = int((time.monotonic() - self._start) * 1000)
+        total_ms = (time.monotonic() - self._start) * 1000
         steps_str = " → ".join(self._steps)
         logger.info(
-            f"[trace={self.trace_id}] DONE +{total_ms}ms "
+            f"[trace={self.trace_id}] DONE +{total_ms:.1f}ms "
             f"steps={len(self._steps)} [{steps_str}] {result}"
         )
 
     @property
-    def total_ms(self) -> int:
-        return int((time.monotonic() - self._start) * 1000)
+    def total_ms(self) -> float:
+        return (time.monotonic() - self._start) * 1000

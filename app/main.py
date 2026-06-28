@@ -6,6 +6,7 @@ FastAPI 入口 — 逐念个人 AI 助理系统。
 
 import logging
 from logging.handlers import TimedRotatingFileHandler
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -21,16 +22,21 @@ LOG_FILE = LOGS_DIR / "zhunian.log"
 file_handler = TimedRotatingFileHandler(
     str(LOG_FILE), when="midnight", backupCount=30, encoding="utf-8"
 )
-file_handler.setFormatter(logging.Formatter(
-    "[%(levelname)s] [%(asctime)s] [%(name)s] %(message)s",
-    datefmt="%Y-%m-%dT%H:%M:%S",
-))
+class _MillisFormatter(logging.Formatter):
+    """自定义 Formatter：时间精确到毫秒（Python logging 的 datefmt 不支持 %f）。"""
+    def formatTime(self, record, datefmt=None):
+        from datetime import datetime, timezone
+        ct = datetime.fromtimestamp(record.created, tz=timezone(timedelta(hours=8)))
+        return ct.strftime("%Y-%m-%dT%H:%M:%S.") + f"{ct.microsecond // 1000:03d}"
+
+LOG_FMT = "[%(levelname)s] [%(asctime)s] [%(name)s] %(message)s"
+
+file_handler.setFormatter(_MillisFormatter(LOG_FMT))
 
 logging.basicConfig(
     level=logging.INFO,
-    format="[%(levelname)s] [%(asctime)s] [%(name)s] %(message)s",
-    datefmt="%Y-%m-%dT%H:%M:%S",
-    handlers=[logging.StreamHandler(), file_handler],
+    format=LOG_FMT,
+    handlers=[logging.StreamHandler(_MillisFormatter(LOG_FMT)), file_handler],
 )
 logger = logging.getLogger("main")
 
