@@ -5,15 +5,32 @@ FastAPI 入口 — 逐念个人 AI 助理系统。
 """
 
 import logging
+from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 
-# 配置日志格式：[LEVEL] [timestamp] [module] message
+# 日志目录
+LOGS_DIR = Path(__file__).parent.parent / "logs"
+LOGS_DIR.mkdir(exist_ok=True)
+LOG_FILE = LOGS_DIR / "zhunian.log"
+
+# 配置日志：[LEVEL] [timestamp] [module] message
+# 同时输出到控制台 + 按天滚动的日志文件
+file_handler = TimedRotatingFileHandler(
+    str(LOG_FILE), when="midnight", backupCount=30, encoding="utf-8"
+)
+file_handler.setFormatter(logging.Formatter(
+    "[%(levelname)s] [%(asctime)s] [%(name)s] %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+))
+
 logging.basicConfig(
     level=logging.INFO,
     format="[%(levelname)s] [%(asctime)s] [%(name)s] %(message)s",
     datefmt="%Y-%m-%dT%H:%M:%S",
+    handlers=[logging.StreamHandler(), file_handler],
 )
 logger = logging.getLogger("main")
 
@@ -84,6 +101,36 @@ app = FastAPI(
 async def health_check():
     """健康检查端点。"""
     return {"status": "ok", "service": "逐念"}
+
+
+# ---- 日志查看 ----
+@app.get("/logs", tags=["system"])
+async def view_logs(lines: int = Query(default=50, le=500), trace: str = ""):
+    """查看最近日志。
+
+    - lines: 返回行数（默认 50，最多 500）
+    - trace: 按 trace_id 过滤（可选）
+    """
+    if not LOG_FILE.exists():
+        return {"error": "日志文件不存在", "path": str(LOG_FILE)}
+
+    # 读取日志文件（可能较大，限制行数）
+    with open(LOG_FILE, "r", encoding="utf-8") as f:
+        all_lines = f.readlines()
+
+    # 按 trace 过滤
+    if trace:
+        all_lines = [l for l in all_lines if trace in l]
+
+    recent = all_lines[-lines:]
+
+    return {
+        "path": str(LOG_FILE),
+        "total_lines": len(all_lines),
+        "returned": len(recent),
+        "trace": trace or None,
+        "lines": [l.rstrip("\n") for l in recent],
+    }
 
 
 # ---- Webhook 路由 ----
