@@ -25,6 +25,7 @@ def _init_tool_map():
     if TOOL_MAP:
         return
     from app.harness.l2_tools import todo_tools, knowledge_tools, system_tools, weather as weather_l2
+    from app.harness.l2_tools.visualization import generate_chart_and_send
     from app.services.cconnect import send_text
 
     TOOL_MAP = {
@@ -60,7 +61,7 @@ def _init_tool_map():
         # 天气
         "get_weather": lambda args: weather_l2.get_weather(args.get("city")),
         # 图表
-        "generate_chart": lambda args: _chart_stub(args),
+        "generate_chart": lambda args: generate_chart_and_send(args),
         # 计划任务
         "create_scheduled_task": _create_scheduled_task,
         # 系统
@@ -91,11 +92,6 @@ async def _create_scheduled_task(args: Dict[str, Any]) -> Dict[str, Any]:
         new_id = result.scalar()
         await session.commit()
         return {"id": new_id, "task_type": args["task_type"], "status": "pending"}
-
-
-async def _chart_stub(args: Dict[str, Any]) -> Dict[str, Any]:
-    """图表生成占位（后续阶段实现）。"""
-    return {"error": "图表生成功能将在后续阶段实现", "requested": args.get("chart_type")}
 
 
 # ---- System Prompt ----

@@ -656,14 +656,35 @@ GET_WEATHER = {
 
 GENERATE_CHART = {
     "name": "generate_chart",
-    "description": "生成 matplotlib 图表并发送到微信。当前功能开发中，暂不可用",
+    "description": (
+        "生成 matplotlib 图表并直接发送到微信。数据自动从数据库查询。\n"
+        "chart_type 必须是下列之一：\n"
+        "- body_weight_trend: 体重趋势折线图\n"
+        "- body_fat_trend: 体脂率趋势折线图\n"
+        "- bmi_trend: BMI 趋势折线图\n"
+        "- measurements_trend: 身体围度多线趋势图\n"
+        "- todo_completion_trend: 任务完成率趋势图（柱状+折线）\n"
+        "- monthly_spending: 月度支出结构饼图\n"
+        "- budget_usage: 预算使用情况水平条形图\n"
+        "- emotion_trend: 情绪能量趋势图\n"
+        "- goal_progress: 目标进展进度条图"
+    ),
     "parameters": {
         "type": "object",
         "properties": {
             "chart_type": {
                 "type": "string",
-                "description": "图表类型：pie（饼图）/ line（折线图）/ bar（柱状图）/ trend（趋势图）/ budget（预算图）/ completion（完成率图）/ health（健康趋势图）",
-                "enum": ["pie", "line", "bar", "trend", "budget", "completion", "health"],
+                "description": "图表数据类型（不是图表样式！）",
+                "enum": [
+                    "body_weight_trend", "body_fat_trend", "bmi_trend",
+                    "measurements_trend", "todo_completion_trend",
+                    "monthly_spending", "budget_usage",
+                    "emotion_trend", "goal_progress",
+                ],
+            },
+            "title": {
+                "type": "string",
+                "description": "图表标题（可选）",
             },
         },
         "required": ["chart_type"],

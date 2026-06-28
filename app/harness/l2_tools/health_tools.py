@@ -3,7 +3,7 @@
 """
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
@@ -55,11 +55,26 @@ async def get_health_daily(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """查询指定日期范围的每日健康数据。默认近 30 天。"""
+    """查询指定日期范围的每日健康数据。自动修正 AI 传入的错误年份。"""
+    today = date.today()
+    default_start = (today - timedelta(days=90)).isoformat()
+    default_end = today.isoformat()
+
     if start_date is None:
-        start_date = date.today().replace(day=1).isoformat()
+        start_date = default_start
     if end_date is None:
-        end_date = date.today().isoformat()
+        end_date = default_end
+
+    # 若 AI 传入明显错误年份（< 2025），全部回退到近 90 天
+    try:
+        sd_year = date.fromisoformat(str(start_date)).year if start_date else today.year
+        ed_year = date.fromisoformat(str(end_date)).year if end_date else today.year
+        if sd_year < 2025 or ed_year < 2025:
+            logger.info(f"检测到错误年份范围 {start_date}~{end_date}，回退到近 90 天")
+            start_date = default_start
+            end_date = default_end
+    except Exception:
+        pass
 
     sd = _parse_date(start_date)
     ed = _parse_date(end_date)

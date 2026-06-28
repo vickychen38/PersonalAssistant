@@ -18,6 +18,7 @@ def _init_tool_map():
     if TOOL_MAP:
         return
     from app.harness.l2_tools import accounting_tools, knowledge_tools, system_tools
+    from app.harness.l2_tools.visualization import generate_chart_and_send
     from app.services.cconnect import send_text
 
     TOOL_MAP = {
@@ -36,7 +37,7 @@ def _init_tool_map():
             category=args["category"], key=args["key"],
             value=args["value"], source_context=args.get("source_context"),
         ),
-        "generate_chart": lambda args: {"info": "chart stub"},
+        "generate_chart": lambda args: generate_chart_and_send(args),
         "send_message": lambda args: send_text(args["content"]),
     }
 

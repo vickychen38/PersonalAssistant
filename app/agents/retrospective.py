@@ -19,6 +19,7 @@ def _init_tool_map():
     if TOOL_MAP:
         return
     from app.harness.l2_tools import retrospective_tools, todo_tools, accounting_tools, health_tools, knowledge_tools
+    from app.harness.l2_tools.visualization import generate_chart_and_send
     from app.services.cconnect import send_text
 
     TOOL_MAP = {
@@ -37,7 +38,7 @@ def _init_tool_map():
             retrospective_tools.UpsertDailyStateInput(**args)),
         "get_recent_agent_actions": lambda args: retrospective_tools.get_recent_agent_actions(
             args.get("limit", 20)),
-        "generate_chart": lambda args: {"info": "chart stub"},
+        "generate_chart": lambda args: generate_chart_and_send(args),
         "send_message": lambda args: send_text(args["content"]),
     }
 
