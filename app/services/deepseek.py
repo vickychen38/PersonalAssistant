@@ -137,6 +137,31 @@ async def chat(
         raise
 
 
+async def _log_tool_result(
+    session_id: int | None,
+    agent_type: str,
+    tool_name: str,
+    input_data: dict,
+    output_data: str | None,
+    success: bool,
+    error_msg: str | None = None,
+) -> None:
+    """记录工具调用结果到 agent_action_logs（静默失败，不影响主流程）。"""
+    try:
+        from app.harness.l5_evaluation.logger import log_tool_call
+        await log_tool_call(
+            session_id=session_id,
+            agent_type=agent_type,
+            tool_name=tool_name,
+            input_data=input_data,
+            output_data=output_data if output_data else "",
+            success=success,
+            error_msg=error_msg,
+        )
+    except Exception as e:
+        logger.warning(f"工具日志写入失败 [{tool_name}]: {e}")
+
+
 async def chat_with_tools(
     system_prompt: str,
     messages: List[Dict[str, str]],
@@ -144,6 +169,8 @@ async def chat_with_tools(
     tool_executor,
     model: str = "flash",
     max_tokens: int = 4096,
+    session_id: int | None = None,
+    agent_type: str = "unknown",
 ) -> dict:
     """
     DeepSeek 带工具调用的对话 — 实现 Tool Call Loop。
@@ -155,6 +182,8 @@ async def chat_with_tools(
         tool_executor: 可调用的工具执行器 callable(name, args) -> result
         model: "pro" | "flash"
         max_tokens: 最大输出 token
+        session_id: 会话 ID（用于审计日志）
+        agent_type: Agent 类型（用于审计日志）
 
     返回:
         {"content": str, "tool_calls": list, "finish_reason": str}
@@ -194,6 +223,12 @@ async def chat_with_tools(
                     "tool_call_id": tc.id,
                     "content": str(result),
                 })
+                # 记录工具调用成功日志
+                await _log_tool_result(
+                    session_id=session_id, agent_type=agent_type,
+                    tool_name=func_name, input_data=func_args,
+                    output_data=str(result), success=True,
+                )
             except Exception as e:
                 logger.error(f"工具执行失败 [{func_name}]: {e}")
                 tool_results.append({
@@ -201,6 +236,12 @@ async def chat_with_tools(
                     "tool_call_id": tc.id,
                     "content": f"Error: {e}",
                 })
+                # 记录工具调用失败日志
+                await _log_tool_result(
+                    session_id=session_id, agent_type=agent_type,
+                    tool_name=func_name, input_data=func_args,
+                    output_data=None, success=False, error_msg=str(e),
+                )
 
         # 将 assistant 消息和工具结果追加到本地消息列表
         assistant_msg = {

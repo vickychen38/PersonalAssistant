@@ -27,3 +27,6 @@ charts/*.svg
 
 # 日志
 *.log
+
+# 运行时上下文（会话状态，不提交）
+.context_store.json

@@ -78,6 +78,17 @@ async def _handle_message(body: dict, send_via_cc: bool = False) -> str:
 
         session_key = body.get("session_key", "")
         project = body.get("project", "")
+        from_user = body.get("from_user", "")
+        context_token = body.get("context_token", "")
+
+        # 保存 webhook 上下文（含 context_token），供调度器主动推送使用
+        from app.services.context_store import save_webhook_context
+        save_webhook_context(
+            session_key=session_key,
+            project=project,
+            from_user=from_user,
+            context_token=context_token,
+        )
 
         # 获取或创建 session
         from app.harness.l4_memory.session_manager import get_active_session, create_session

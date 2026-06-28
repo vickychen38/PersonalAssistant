@@ -34,6 +34,7 @@ def _build_send_payload(
     tts_text: str = "",
     project: str = "",
     session_key: str = "",
+    context_token: str = "",
 ) -> dict:
     """构建 cc-connect /send 请求体。
 
@@ -44,12 +45,16 @@ def _build_send_payload(
         tts_text: TTS 语音文本
         project: 项目名称
         session_key: 会话标识
+        context_token: WeChat 平台会话令牌（用于主动推送）
     """
     payload: dict = {
         "project": project,
         "session_key": session_key,
         "message": text,
     }
+
+    if context_token:
+        payload["context_token"] = context_token
 
     if images:
         payload["images"] = [
@@ -129,6 +134,7 @@ async def send_text(
     to_user: Optional[str] = None,
     project: str = "",
     session_key: str = "",
+    context_token: str = "",
 ) -> bool:
     """
     发送文本消息到微信。
@@ -138,6 +144,7 @@ async def send_text(
         to_user: 接收者 ID（已废弃，由 cc-connect 根据 session 路由）
         project: 项目名称
         session_key: 会话标识
+        context_token: WeChat 平台会话令牌
 
     返回:
         True 成功，False 失败
@@ -150,6 +157,7 @@ async def send_text(
         text=content,
         project=project,
         session_key=session_key,
+        context_token=context_token,
     )
 
     return await _post_to_cc(payload)

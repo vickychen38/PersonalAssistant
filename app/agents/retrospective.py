@@ -72,7 +72,9 @@ class RetrospectiveAgent(BaseAgent):
 
         try:
             resp = await chat_with_tools(system_prompt, messages, tool_schemas,
-                                          lambda n, a: self._exec(n, a), model="pro")
+                                          lambda n, a: self._exec(n, a), model="pro",
+                                          session_id=session.get("id") if session else None,
+                                          agent_type=self.agent_type)
             return resp.get("content", "抱歉，复盘处理遇到了问题。")
         except Exception as e:
             logger.error(f"RetrospectiveAgent 失败: {e}")

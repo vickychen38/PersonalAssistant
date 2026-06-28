@@ -327,8 +327,18 @@ async def morning_briefing():
     # 8. 发送
     try:
         from app.services.cconnect import send_text
-        await send_text(message)
-        logger.info("晨报已发送")
+        from app.services.context_store import get_last_context
+        ctx = get_last_context()
+        ok = await send_text(
+            message,
+            session_key=ctx["session_key"],
+            project=ctx["project"],
+            context_token=ctx["context_token"],
+        )
+        if ok:
+            logger.info("晨报已发送")
+        else:
+            logger.warning("晨报发送失败（cc-connect 返回失败，可能 context_token 已过期）")
     except Exception as e:
         logger.error(f"晨报发送失败: {e}")
 
@@ -395,7 +405,9 @@ async def todo_followup_scanner():
             # 发送
             try:
                 from app.services.cconnect import send_text
-                await send_text(message)
+                from app.services.context_store import get_last_context
+                ctx = get_last_context()
+                await send_text(message, session_key=ctx["session_key"], project=ctx["project"], context_token=ctx["context_token"])
                 logger.info(f"Todo 跟进已发送: todo_id={todo_id}")
             except Exception as e:
                 logger.error(f"Todo 跟进发送失败: {e}")
@@ -424,12 +436,7 @@ async def evening_review():
     """
     晚间复盘触发 — 盘点今日任务，发送摘要并引导对话。
 
-    流程：
-      1. 查询今日所有 todo_instances
-      2. 计算完成率
-      3. 创建 conversation_session（session_type=evening_review）
-      4. 发送摘要消息
-      5. 后续对话由 RetrospectiveAgent 接管
+    无论今日是否有待办，都会触发复盘对话。
     """
     import json
     today = _today()
@@ -452,10 +459,6 @@ async def evening_review():
             {"id": r[0], "status": r[1], "title": r[2], "goal_name": r[3]}
             for r in result.fetchall()
         ]
-
-        if not instances:
-            logger.info("今日无待办，跳过晚间复盘")
-            return
 
         total = len(instances)
         completed = sum(1 for i in instances if i["status"] == "completed")
@@ -486,7 +489,15 @@ async def evening_review():
 
     # 构建消息
     if is_dnd:
-        msg = f"今天怎么样？有什么想记的吗？"
+        msg = "今天怎么样？有什么想记的吗？"
+    elif total == 0:
+        # 今日无待办 — 仍然触发复盘对话
+        msg = (
+            f"🌙 晚间复盘 — {today.strftime('%m月%d日')}\n\n"
+            f"今天没有待办任务。\n\n"
+            f"今天过得怎么样？有什么想记录的吗？\n"
+            f"（说说今天的感受，或者直接说「写复盘」开始生成）"
+        )
     else:
         parts = [f"🌙 晚间复盘 — {today.strftime('%m月%d日')}"]
         parts.append(f"今日任务：完成 {completed}/{total} 项（{rate}%）")
@@ -506,8 +517,13 @@ async def evening_review():
 
     try:
         from app.services.cconnect import send_text
-        await send_text(msg)
-        logger.info(f"晚间复盘已发送: session_id={session_id}")
+        from app.services.context_store import get_last_context
+        ctx = get_last_context()
+        ok = await send_text(msg, session_key=ctx["session_key"], project=ctx["project"], context_token=ctx["context_token"])
+        if ok:
+            logger.info(f"晚间复盘已发送: session_id={session_id}")
+        else:
+            logger.warning("晚间复盘发送失败（cc-connect 返回失败，可能 context_token 已过期）")
     except Exception as e:
         logger.error(f"晚间复盘发送失败: {e}")
 
@@ -563,7 +579,9 @@ async def weekly_retro_check():
 
     try:
         from app.services.cconnect import send_text
-        await send_text(msg)
+        from app.services.context_store import get_last_context
+        ctx = get_last_context()
+        await send_text(msg, session_key=ctx["session_key"], project=ctx["project"], context_token=ctx["context_token"])
         logger.info("周复盘触发消息已发送")
     except Exception as e:
         logger.error(f"周复盘发送失败: {e}")
@@ -618,7 +636,9 @@ async def monthly_retro_check():
 
     try:
         from app.services.cconnect import send_text
-        await send_text(msg)
+        from app.services.context_store import get_last_context
+        ctx = get_last_context()
+        await send_text(msg, session_key=ctx["session_key"], project=ctx["project"], context_token=ctx["context_token"])
         logger.info("月复盘触发消息已发送")
     except Exception as e:
         logger.error(f"月复盘发送失败: {e}")

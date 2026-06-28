@@ -155,6 +155,8 @@ class TodoAgent(BaseAgent):
                 tool_schemas=tool_schemas,
                 tool_executor=self._execute_tool,
                 model="flash",
+                session_id=session.get("id") if session else None,
+                agent_type=self.agent_type,
             )
             return response.get("content", "抱歉，我暂时无法处理这个请求。")
         except Exception as e:
