@@ -60,7 +60,7 @@ async def daily_todo_gen():
         # 查询所有 active 的 todos（含时间和时长信息）
         result = await session.execute(
             text("""
-                SELECT id, type, recurrence_rule, scheduled_date,
+                SELECT id, type, recurrence_rule, scheduled_at,
                        scheduled_time, duration_minutes
                 FROM todos WHERE status = 'active'
             """)
@@ -70,12 +70,18 @@ async def daily_todo_gen():
         followup_count = 0
 
         for todo in todos:
-            todo_id, todo_type, rule, sched_date, sched_time, duration = todo
+            todo_id, todo_type, rule, sched_at, sched_time, duration = todo
             should_create = False
             effective_time = sched_time  # 默认用 todo 级时间
 
             if todo_type == "one_time":
-                if sched_date and sched_date == today:
+                # scheduled_at 是 timestamptz，Python 收到后为 UTC datetime
+                # 用 DB 端 ::date 比较避免时区偏移导致 .date() 差一天
+                is_today = await session.execute(
+                    text("SELECT scheduled_at::date = CURRENT_DATE FROM todos WHERE id = :id"),
+                    {"id": todo_id},
+                )
+                if is_today.scalar():
                     should_create = True
 
             elif todo_type == "recurring" and rule:
@@ -114,13 +120,13 @@ async def daily_todo_gen():
 
             if should_create:
                 result3 = await session.execute(
-                    text("SELECT id FROM todo_instances WHERE todo_id = :tid AND date = :d"),
+                    text("SELECT id FROM todo_instances WHERE todo_id = :tid AND scheduled_at::date = :d"),
                     {"tid": todo_id, "d": today},
                 )
                 if result3.fetchone() is None:
                     result_ins = await session.execute(
                         text("""
-                            INSERT INTO todo_instances (todo_id, date, scheduled_time)
+                            INSERT INTO todo_instances (todo_id, scheduled_at, scheduled_time)
                             VALUES (:todo_id, :date, :scheduled_time)
                             RETURNING id
                         """),
@@ -192,7 +198,7 @@ async def morning_briefing():
                 FROM todo_instances ti
                 JOIN todos t ON ti.todo_id = t.id
                 LEFT JOIN goals g ON t.goal_id = g.id
-                WHERE ti.date = :today
+                WHERE ti.scheduled_at::date = :today
                 ORDER BY ti.scheduled_time NULLS LAST
             """),
             {"today": today},
@@ -215,7 +221,7 @@ async def morning_briefing():
             text("""
                 SELECT t.title FROM todo_instances ti
                 JOIN todos t ON ti.todo_id = t.id
-                WHERE ti.date = :yesterday AND ti.status IN ('pending', 'postponed')
+                WHERE ti.scheduled_at::date = :yesterday AND ti.status IN ('pending', 'postponed')
             """),
             {"yesterday": yesterday},
         )
@@ -393,7 +399,7 @@ async def todo_followup_scanner():
                     SELECT COUNT(*) FROM todo_instances ti2
                     JOIN scheduled_tasks st2 ON st2.reference_id = ti2.id
                     WHERE ti2.todo_id = :todo_id
-                      AND ti2.date >= CURRENT_DATE - INTERVAL '7 days'
+                      AND ti2.scheduled_at >= CURRENT_DATE - INTERVAL '7 days'
                       AND ti2.status IN ('cancelled', 'postponed')
                 """),
                 {"todo_id": todo_id},
@@ -450,7 +456,7 @@ async def evening_review():
                 FROM todo_instances ti
                 JOIN todos t ON ti.todo_id = t.id
                 LEFT JOIN goals g ON t.goal_id = g.id
-                WHERE ti.date = :today
+                WHERE ti.scheduled_at::date = :today
                 ORDER BY ti.id
             """),
             {"today": today},

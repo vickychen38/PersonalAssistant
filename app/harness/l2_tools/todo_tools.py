@@ -44,21 +44,26 @@ class CreateTodoInput(BaseModel):
     goal_id: Optional[int] = None
     description: Optional[str] = None
     recurrence_rule: Optional[Dict[str, Any]] = None
-    scheduled_date: Optional[str] = None  # YYYY-MM-DD
+    scheduled_at: Optional[str] = Field(
+        default=None, alias="scheduled_date",
+        description="ISO datetime（精确到分钟），兼容旧名 scheduled_date",
+    )
     scheduled_time: Optional[str] = None  # HH:MM
     duration_minutes: Optional[int] = None
+
+    model_config = {"populate_by_name": True}  # 允许 scheduled_at 和 scheduled_date 两种输入
 
 class CreateGoalInput(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
     category: Optional[str] = None
-    target_date: Optional[str] = None  # YYYY-MM-DD
+    target_date: Optional[str] = None  # ISO datetime（精确到分钟）
 
 class UpdateTodoInstanceStatusInput(BaseModel):
     id: int
     status: str = Field(..., pattern="^(completed|cancelled|postponed)$")
     notes: Optional[str] = None
-    postponed_to: Optional[str] = None  # YYYY-MM-DD
+    postponed_to: Optional[str] = None  # ISO datetime（精确到分钟）
     completed_at: Optional[str] = None  # ISO datetime
 
 class UpdateTodoRecurrenceInput(BaseModel):
@@ -67,8 +72,13 @@ class UpdateTodoRecurrenceInput(BaseModel):
 
 class CreateTodoInstanceInput(BaseModel):
     todo_id: int
-    date: str  # YYYY-MM-DD
+    scheduled_at: str = Field(
+        alias="date",
+        description="ISO datetime（精确到分钟），兼容旧名 date",
+    )
     scheduled_time: Optional[str] = None  # HH:MM
+
+    model_config = {"populate_by_name": True}  # 允许 scheduled_at 和 date 两种输入
 
 
 # ============================================================
@@ -92,14 +102,14 @@ async def get_todos_by_date(target_date: Optional[str] = None) -> List[Dict[str,
         result = await session.execute(
             text("""
                 SELECT
-                    ti.id, ti.todo_id, ti.date, ti.scheduled_time,
+                    ti.id, ti.todo_id, ti.scheduled_at, ti.scheduled_time,
                     ti.status, ti.completed_at, ti.postponed_to, ti.notes,
                     t.title, t.type, t.goal_id,
                     g.name AS goal_name
                 FROM todo_instances ti
                 JOIN todos t ON ti.todo_id = t.id
                 LEFT JOIN goals g ON t.goal_id = g.id
-                WHERE ti.date = :target_date
+                WHERE ti.scheduled_at::date = :target_date
                 ORDER BY ti.scheduled_time NULLS LAST, ti.id
             """),
             {"target_date": target},
@@ -109,7 +119,7 @@ async def get_todos_by_date(target_date: Optional[str] = None) -> List[Dict[str,
             {
                 "id": r[0],
                 "todo_id": r[1],
-                "date": str(r[2]),
+                "scheduled_at": str(r[2]) if r[2] else None,
                 "scheduled_time": str(r[3]) if r[3] else None,
                 "status": r[4],
                 "completed_at": str(r[5]) if r[5] else None,
@@ -176,10 +186,10 @@ async def create_todo(data: CreateTodoInput) -> Dict[str, Any]:
         result = await session.execute(
             text("""
                 INSERT INTO todos (goal_id, title, description, type,
-                                   recurrence_rule, scheduled_date,
+                                   recurrence_rule, scheduled_at,
                                    scheduled_time, duration_minutes)
                 VALUES (:goal_id, :title, :description, :type,
-                        CAST(:recurrence_rule AS jsonb), :scheduled_date,
+                        CAST(:recurrence_rule AS jsonb), :scheduled_at,
                         :scheduled_time, :duration_minutes)
                 RETURNING id
             """),
@@ -189,7 +199,7 @@ async def create_todo(data: CreateTodoInput) -> Dict[str, Any]:
                 "description": data.description,
                 "type": data.type,
                 "recurrence_rule": _json.dumps(data.recurrence_rule) if data.recurrence_rule else None,
-                "scheduled_date": _parse_date(data.scheduled_date),
+                "scheduled_at": _parse_date(data.scheduled_at),
                 "scheduled_time": _parse_time(data.scheduled_time),
                 "duration_minutes": data.duration_minutes,
             },
@@ -215,13 +225,13 @@ async def create_todo_instance(data: CreateTodoInstanceInput) -> Dict[str, Any]:
     async with async_session_factory() as session:
         result = await session.execute(
             text("""
-                INSERT INTO todo_instances (todo_id, date, scheduled_time)
-                VALUES (:todo_id, :date, :scheduled_time)
+                INSERT INTO todo_instances (todo_id, scheduled_at, scheduled_time)
+                VALUES (:todo_id, :scheduled_at, :scheduled_time)
                 RETURNING id
             """),
             {
                 "todo_id": data.todo_id,
-                "date": _parse_date(data.date),
+                "scheduled_at": _parse_date(data.scheduled_at),
                 "scheduled_time": _parse_time(data.scheduled_time),
             },
         )
@@ -230,7 +240,7 @@ async def create_todo_instance(data: CreateTodoInstanceInput) -> Dict[str, Any]:
         return {
             "id": new_id,
             "todo_id": data.todo_id,
-            "date": data.date,
+            "scheduled_at": data.scheduled_at,
             "status": "pending",
         }
 
@@ -258,7 +268,7 @@ async def update_todo_instance_status(
                 UPDATE todo_instances
                 SET status = :status,
                     notes = COALESCE(:notes, notes),
-                    postponed_to = :postponed_to::date,
+                    postponed_to = :postponed_to::timestamptz,
                     completed_at = :completed_at::timestamptz
                 WHERE id = :id
                 RETURNING id, todo_id, status, notes

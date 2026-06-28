@@ -34,7 +34,9 @@ class Todo(Base):
     #       {"frequency":"weekly","days":[2,4],"time":"12:00"}
     #       {"frequency":"every_n_days","n":2}
 
-    scheduled_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    scheduled_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     scheduled_time: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
     duration_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
@@ -66,7 +68,9 @@ class TodoInstance(Base):
     todo_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("todos.id"), nullable=False
     )
-    date: Mapped[date] = mapped_column(Date, nullable=False)
+    scheduled_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     scheduled_time: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="pending"
@@ -76,7 +80,9 @@ class TodoInstance(Base):
     completed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    postponed_to: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    postponed_to: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
@@ -86,7 +92,7 @@ class TodoInstance(Base):
     def __repr__(self) -> str:
         return (
             f"<TodoInstance(id={self.id}, todo_id={self.todo_id}, "
-            f"date={self.date}, status='{self.status}')>"
+            f"scheduled_at={self.scheduled_at}, status='{self.status}')>"
         )
 
     @property

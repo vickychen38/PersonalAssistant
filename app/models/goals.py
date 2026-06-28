@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import String, Integer, Text, Date, DateTime, func
+from sqlalchemy import String, Integer, Text, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -19,7 +19,9 @@ class Goal(Base):
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="active"
     )
-    target_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    target_date: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     completed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
