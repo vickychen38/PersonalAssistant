@@ -30,8 +30,8 @@ try:
         "PingFang SC", "Heiti SC", "STHeiti", "Arial Unicode MS", "SimHei"
     ]
     matplotlib.rcParams["axes.unicode_minus"] = False
-except Exception:
-    pass
+except Exception as e:
+    logging.getLogger("visualization").warning(f"中文字体加载失败，图表可能乱码: {e}")
 
 
 async def generate_chart(

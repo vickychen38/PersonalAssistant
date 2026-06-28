@@ -59,7 +59,8 @@ def _get_encoder():
     try:
         import tiktoken
         return tiktoken.get_encoding("cl100k_base")
-    except Exception:
+    except Exception as e:
+        logger.warning(f"tiktoken 加载失败，将用字符数估算 token: {e}")
         return None
 
 

@@ -36,7 +36,8 @@ async def receive_message(request: Request, background_tasks: BackgroundTasks):
     # 解析请求体
     try:
         body = await request.json()
-    except Exception:
+    except Exception as e:
+        logger.warning(f"webhook JSON 解析失败: {e}")
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
     logger.info(f"收到消息: message_id={body.get('message_id')} from={body.get('from_user')}")
@@ -161,7 +162,7 @@ async def _handle_message(body: dict, send_via_cc: bool = False) -> str:
             try:
                 from app.services.cconnect import send_text
                 await send_text(error_msg, session_key=body.get("session_key", ""), project=body.get("project", ""))
-            except Exception:
-                pass
+            except Exception as send_err:
+                logger.error(f"发送错误消息失败: {send_err}")
         trace.done(f"异常: {e}")
         return error_msg

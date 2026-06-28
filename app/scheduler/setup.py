@@ -27,8 +27,8 @@ async def _load_schedule_times() -> tuple[str, str]:
         morning = cfg.get("morning_briefing_time", "07:30")
         evening = cfg.get("evening_review_time", "22:00")
         return morning, evening
-    except Exception:
-        logger.warning("无法读取调度配置，使用默认值")
+    except Exception as e:
+        logger.warning(f"无法读取调度配置，使用默认值: {e}", exc_info=True)
         return "07:30", "22:00"
 
 

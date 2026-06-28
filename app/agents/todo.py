@@ -183,19 +183,5 @@ class TodoAgent(BaseAgent):
 
 def _build_tool_schemas(tool_names: list[str]) -> list[dict]:
     """根据工具名列表构建 OpenAI 格式的 tool schemas。"""
-    # 简化 schema — 后续阶段会用完整的 function 定义
-    schemas = []
-    for name in tool_names:
-        schemas.append({
-            "type": "function",
-            "function": {
-                "name": name,
-                "description": f"Tool: {name}",
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": True,
-                },
-            },
-        })
-    return schemas
+    from app.harness.l2_tools.tool_schemas import build_tool_schemas
+    return build_tool_schemas(tool_names)

@@ -4,11 +4,15 @@ SQLAlchemy 2.0 async 引擎 + session 工厂。
 使用 asyncpg 驱动连接 PostgreSQL。
 """
 
+import logging
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 
 from app.config import config
+
+logger = logging.getLogger("database")
 
 
 # 异步引擎
@@ -45,8 +49,9 @@ async def get_db() -> AsyncSession:
         try:
             yield session
             await session.commit()
-        except Exception:
+        except Exception as e:
             await session.rollback()
+            logger.error(f"数据库事务失败，已回滚: {e}", exc_info=True)
             raise
 
 

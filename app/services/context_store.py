@@ -21,8 +21,8 @@ def _read_store() -> dict:
     try:
         if STORE_PATH.exists():
             return json.loads(STORE_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"context_store 读取失败: {e}")
     return {}
 
 

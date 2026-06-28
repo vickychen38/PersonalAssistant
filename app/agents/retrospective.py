@@ -67,8 +67,8 @@ class RetrospectiveAgent(BaseAgent):
         system_prompt += f"\n当前日期: {date.today().isoformat()}"
 
         allowed = get_agent_tools(self.agent_type)
-        tool_schemas = [{"type": "function", "function": {"name": n, "description": f"Tool: {n}",
-            "parameters": {"type": "object", "properties": {}, "additionalProperties": True}}} for n in allowed]
+        from app.harness.l2_tools.tool_schemas import build_tool_schemas
+        tool_schemas = build_tool_schemas(allowed)
 
         try:
             resp = await chat_with_tools(system_prompt, messages, tool_schemas,

@@ -163,7 +163,7 @@ async def _build_current_state() -> str:
         if city:
             lines.append(f"用户城市: {city}")
         lines.append(f"勿扰模式: {'开启' if dnd == 'true' else '关闭'}")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"加载系统上下文失败: {e}")
 
     return "\n".join(lines)
