@@ -119,8 +119,7 @@ async def ai_route(user_text: str) -> str:
             system_prompt=ROUTER_PROMPT,
             messages=[{"role": "user", "content": user_text}],
             model="flash",
-            max_tokens=20,
-            disable_thinking=True,
+            max_tokens=10000,
         )
         result = response.get("content", "").strip().lower()
         if result in ("todo", "accounting", "health", "retrospective"):
