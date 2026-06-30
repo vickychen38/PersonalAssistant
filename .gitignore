@@ -7,6 +7,7 @@ __pycache__/
 *.egg-info/
 dist/
 *.egg
+.pytest_cache/
 
 # 虚拟环境
 venv/
@@ -17,16 +18,15 @@ env/
 .vscode/
 .idea/
 
-# 图表临时文件
-charts/*.png
-charts/*.jpg
-charts/*.svg
-
-# macOS
-.DS_Store
+# 图表输出（运行时生成）
+charts/
 
 # 日志
+logs/
 *.log
 
 # 运行时上下文（会话状态，不提交）
 .context_store.json
+
+# macOS
+.DS_Store
