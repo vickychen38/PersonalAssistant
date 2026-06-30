@@ -9,6 +9,7 @@ DeepSeek API 客户端。
 """
 
 import logging
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List
 
 from openai import AsyncOpenAI
@@ -67,10 +68,19 @@ def _build_params(
         for msg in recent_messages
     ]
 
+    # 注入当前北京时间，解决 LLM 时间盲问题
+    beijing_tz = timezone(timedelta(hours=8))
+    now = datetime.now(beijing_tz)
+    weekday = ["一", "二", "三", "四", "五", "六", "日"][now.weekday()]
+    time_context = (
+        f"现在是北京时间 {now.strftime('%Y年%m月%d日')} 星期{weekday} "
+        f"{now.strftime('%H:%M')}。\n\n"
+    )
+
     params: Dict[str, Any] = {
         "model": _resolve_model(model),
         "messages": [
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": time_context + system_prompt},
             *clean_messages,
         ],
         "max_tokens": max_tokens,
