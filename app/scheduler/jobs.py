@@ -337,14 +337,14 @@ async def morning_briefing():
         ctx = get_last_context()
         ok = await send_text(
             message,
+            to_user=config.wechat_user_id,
             session_key=ctx["session_key"],
             project=ctx["project"],
-            context_token=ctx["context_token"],
         )
         if ok:
             logger.info("晨报已发送")
         else:
-            logger.warning("晨报发送失败（cc-connect 返回失败，可能 context_token 已过期）")
+            logger.warning("晨报发送失败（cc-connect 返回失败）")
     except Exception as e:
         logger.error(f"晨报发送失败: {e}")
 
@@ -413,7 +413,7 @@ async def todo_followup_scanner():
                 from app.services.cconnect import send_text
                 from app.services.context_store import get_last_context
                 ctx = get_last_context()
-                await send_text(message, session_key=ctx["session_key"], project=ctx["project"], context_token=ctx["context_token"])
+                await send_text(message, to_user=config.wechat_user_id, session_key=ctx["session_key"], project=ctx["project"])
                 logger.info(f"Todo 跟进已发送: todo_id={todo_id}")
             except Exception as e:
                 logger.error(f"Todo 跟进发送失败: {e}")
@@ -525,11 +525,11 @@ async def evening_review():
         from app.services.cconnect import send_text
         from app.services.context_store import get_last_context
         ctx = get_last_context()
-        ok = await send_text(msg, session_key=ctx["session_key"], project=ctx["project"], context_token=ctx["context_token"])
+        ok = await send_text(msg, to_user=config.wechat_user_id, session_key=ctx["session_key"], project=ctx["project"])
         if ok:
             logger.info(f"晚间复盘已发送: session_id={session_id}")
         else:
-            logger.warning("晚间复盘发送失败（cc-connect 返回失败，可能 context_token 已过期）")
+            logger.warning("晚间复盘发送失败（cc-connect 返回失败）")
     except Exception as e:
         logger.error(f"晚间复盘发送失败: {e}")
 
@@ -587,7 +587,7 @@ async def weekly_retro_check():
         from app.services.cconnect import send_text
         from app.services.context_store import get_last_context
         ctx = get_last_context()
-        await send_text(msg, session_key=ctx["session_key"], project=ctx["project"], context_token=ctx["context_token"])
+        await send_text(msg, to_user=config.wechat_user_id, session_key=ctx["session_key"], project=ctx["project"])
         logger.info("周复盘触发消息已发送")
     except Exception as e:
         logger.error(f"周复盘发送失败: {e}")
@@ -644,7 +644,7 @@ async def monthly_retro_check():
         from app.services.cconnect import send_text
         from app.services.context_store import get_last_context
         ctx = get_last_context()
-        await send_text(msg, session_key=ctx["session_key"], project=ctx["project"], context_token=ctx["context_token"])
+        await send_text(msg, to_user=config.wechat_user_id, session_key=ctx["session_key"], project=ctx["project"])
         logger.info("月复盘触发消息已发送")
     except Exception as e:
         logger.error(f"月复盘发送失败: {e}")

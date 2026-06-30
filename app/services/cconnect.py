@@ -35,6 +35,7 @@ def _build_send_payload(
     project: str = "",
     session_key: str = "",
     context_token: str = "",
+    to_user: str = "",
 ) -> dict:
     """构建 cc-connect /send 请求体。
 
@@ -45,13 +46,17 @@ def _build_send_payload(
         tts_text: TTS 语音文本
         project: 项目名称
         session_key: 会话标识
-        context_token: WeChat 平台会话令牌（用于主动推送）
+        context_token: WeChat 平台会话令牌（用于回复）
+        to_user: 接收者微信用户 ID（用于主动推送）
     """
     payload: dict = {
         "project": project,
         "session_key": session_key,
         "message": text,
     }
+
+    if to_user:
+        payload["to_user"] = to_user
 
     if context_token:
         payload["context_token"] = context_token
@@ -115,10 +120,13 @@ async def _post_to_cc(payload: dict, timeout: int = 30) -> bool:
                     resp = await client.post(url, json=payload)
                     resp.raise_for_status()
 
+            text = payload.get("message", "")
+            session_key = payload.get("session_key", "")
             logger.info(f"cc-connect 发送成功: text='{text[:60]}' session_key={session_key[:20] if session_key else '无'}...")
             return True
 
         except httpx.HTTPError as e:
+            text = payload.get("message", "")
             logger.warning(
                 f"cc-connect 发送失败 (第 {attempt}/{SEND_RETRIES} 次): {type(e).__name__} | text='{text[:60]}'"
             )
@@ -131,7 +139,7 @@ async def _post_to_cc(payload: dict, timeout: int = 30) -> bool:
 
 async def send_text(
     content: str,
-    to_user: Optional[str] = None,
+    to_user: str = "",
     project: str = "",
     session_key: str = "",
     context_token: str = "",
@@ -141,10 +149,10 @@ async def send_text(
 
     参数:
         content: 消息文本
-        to_user: 接收者 ID（已废弃，由 cc-connect 根据 session 路由）
+        to_user: 接收者微信用户 ID（调度器主动推送必填，webhook 回复时省略）
         project: 项目名称
         session_key: 会话标识
-        context_token: WeChat 平台会话令牌
+        context_token: WeChat 平台会话令牌（用于回复，主动推送时省略）
 
     返回:
         True 成功，False 失败
@@ -158,6 +166,7 @@ async def send_text(
         project=project,
         session_key=session_key,
         context_token=context_token,
+        to_user=to_user or "",
     )
 
     return await _post_to_cc(payload)
