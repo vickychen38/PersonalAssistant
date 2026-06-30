@@ -4,11 +4,18 @@
 
 ### 修复
 - Agent 主动推送：调度器（晨报/晚间复盘/待办跟进/周月复盘）改用 `to_user` 发消息，不再用 `context_token` 回复令牌
+- `send_image` / `send_tts` 补齐 `to_user` 参数，图表生成主动推送可用
+- ChatAgent `send_message` 工具补齐 `to_user`
 - `_post_to_cc` 日志引用未定义变量的 bug
+- `router.py` `route_message` 底部重复 return 死代码
 - 每次 DeepSeek API 调用自动注入当前北京时间，解决模型时间盲问题
+
+### 清理
+- Agent prompt 中移除冗余的手动日期注入（`deepseek.py` 已全局处理）
 
 ### 文档
 - 新增 README.md（项目架构、快速开始、功能概览）
+- 新增 CHANGELOG.md
 
 ### 工程
 - 更新 .gitignore，排除 `logs/`、`charts/`、`.pytest_cache/`
