@@ -6,7 +6,6 @@ Todo Agent — 待办、目标、晨报、跟进。
 
 import json
 import logging
-from datetime import date
 from pathlib import Path
 from typing import Any, Dict
 
@@ -133,10 +132,6 @@ class TodoAgent(BaseAgent):
         user_context = await self.get_user_context()
         if user_context:
             system_prompt += f"\n\n{user_context}"
-
-        # 今天日期
-        today = date.today()
-        system_prompt += f"\n\n当前日期: {today.isoformat()}"
 
         # 获取允许的工具列表
         allowed_tools = get_agent_tools(self.agent_type) if self.agent_type != "base" else []

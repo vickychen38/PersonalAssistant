@@ -119,9 +119,11 @@ async def generate_chart_and_send(args: Dict[str, Any]) -> Dict[str, Any]:
     try:
         from app.services.cconnect import send_image
         from app.services.context_store import get_last_context
+        from app.config import config
         ctx = get_last_context()
         ok = await send_image(
             result["path"],
+            to_user=config.wechat_user_id,
             session_key=ctx.get("session_key", ""),
             project=ctx.get("project", ""),
         )

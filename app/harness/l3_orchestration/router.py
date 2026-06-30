@@ -248,7 +248,6 @@ async def route_message(
     # chat 是兜底，任何不确定的都走闲聊
     logger.info(f"路由结果: → {agent_type}")
     return {"route_type": "ai_route", "agent_type": agent_type, "reply": None}
-    return {"route_type": "ai_route", "agent_type": agent_type, "reply": None}
 
 
 async def dispatch_to_agent(

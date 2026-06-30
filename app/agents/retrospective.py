@@ -2,7 +2,6 @@
 
 import json
 import logging
-from datetime import date
 from pathlib import Path
 from typing import Any, Dict
 
@@ -65,7 +64,6 @@ class RetrospectiveAgent(BaseAgent):
         ctx = await self.get_user_context()
         if ctx:
             system_prompt += f"\n\n{ctx}"
-        system_prompt += f"\n当前日期: {date.today().isoformat()}"
 
         allowed = get_agent_tools(self.agent_type)
         from app.harness.l2_tools.tool_schemas import build_tool_schemas

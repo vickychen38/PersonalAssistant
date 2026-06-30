@@ -7,8 +7,6 @@ ChatAgent — 日常闲聊 + 联网搜索。
 
 import json
 import logging
-from datetime import date
-from pathlib import Path
 from typing import Any, Dict
 
 from app.agents.base import BaseAgent
@@ -25,16 +23,17 @@ def _init_tool_map():
         return
     from app.harness.l2_tools.web_search import web_search_tool
     from app.services.cconnect import send_text
+    from app.config import config
 
     TOOL_MAP = {
         "web_search": lambda args: web_search_tool(args),
-        "send_message": lambda args: send_text(args["content"]),
+        "send_message": lambda args: send_text(args["content"], to_user=config.wechat_user_id),
     }
 
 
 def _load_prompt() -> str:
     """加载 Chat Agent 系统提示词。"""
-    prompt = """你是逐念，Vicky 的个人 AI 助理。你现在处于闲聊模式。
+    return """你是逐念，Vicky 的个人 AI 助理。你现在处于闲聊模式。
 
 关于 Vicky:
 - 女生，长期健身（私教课），在科技行业工作
@@ -52,10 +51,7 @@ def _load_prompt() -> str:
   调用 web_search(query="关键词")
 - 搜索结果会返回摘要和相关链接，你根据结果用口语化的方式回答
 - 纯闲聊、问候、情绪表达不需要搜索
-
-当前日期: {today}
 """
-    return prompt
 
 
 class ChatAgent(BaseAgent):
@@ -79,7 +75,7 @@ class ChatAgent(BaseAgent):
             messages = session["messages"]
         messages.append({"role": "user", "content": user_message})
 
-        system_prompt = _load_prompt().format(today=date.today().isoformat())
+        system_prompt = _load_prompt()
 
         # 注入用户画像
         user_context = await self.get_user_context()

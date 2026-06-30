@@ -174,6 +174,7 @@ async def send_text(
 
 async def send_image(
     image_path: str,
+    to_user: str = "",
     project: str = "",
     session_key: str = "",
 ) -> bool:
@@ -182,6 +183,7 @@ async def send_image(
 
     参数:
         image_path: 图片文件路径
+        to_user: 接收者微信用户 ID（主动推送时传入）
         project: 项目名称
         session_key: 会话标识
 
@@ -194,6 +196,7 @@ async def send_image(
 
     payload = _build_send_payload(
         images=[image_path],
+        to_user=to_user,
         project=project,
         session_key=session_key,
     )
@@ -201,12 +204,18 @@ async def send_image(
     return await _post_to_cc(payload)
 
 
-async def send_tts(tts_text: str, project: str = "", session_key: str = "") -> bool:
+async def send_tts(
+    tts_text: str,
+    to_user: str = "",
+    project: str = "",
+    session_key: str = "",
+) -> bool:
     """
     发送 TTS 语音消息。
 
     参数:
         tts_text: 要朗读的文本
+        to_user: 接收者微信用户 ID（主动推送时传入）
         project: 项目名称
         session_key: 会话标识
 
@@ -219,6 +228,7 @@ async def send_tts(tts_text: str, project: str = "", session_key: str = "") -> b
 
     payload = _build_send_payload(
         tts_text=tts_text,
+        to_user=to_user,
         project=project,
         session_key=session_key,
     )
