@@ -45,8 +45,13 @@ def save_webhook_context(
 
     每次收到用户消息时调用，用于调度器后续主动推送。
     context_token 是 WeChat 平台会话令牌，cc-connect 需要它来推送消息。
+
+    兼容 ACP relay agent 的 payload 格式（session_id / from_user 字段可能缺失）。
     """
+    # ACP relay agent 的 payload 不含传统 cc-connect 字段，放宽 guard：
+    # 只要有 session_key 或 session_id 就保存
     if not session_key and not from_user:
+        # 静默返回，不写空数据
         return
 
     current = _read_store()

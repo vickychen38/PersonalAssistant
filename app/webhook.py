@@ -83,7 +83,8 @@ async def _handle_message(body: dict, send_via_cc: bool = False) -> str:
             logger.warning(f"[trace={trace.trace_id}] 收到空消息")
             return ""
 
-        session_key = body.get("session_key", "")
+        # cc-connect 标准字段 + ACP relay agent 兼容
+        session_key = body.get("session_key") or body.get("session_id", "")
         project = body.get("project", "")
         from_user = body.get("from_user", "")
         context_token = body.get("context_token", "")

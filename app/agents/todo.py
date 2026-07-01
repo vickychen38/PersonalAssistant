@@ -75,17 +75,18 @@ async def _create_scheduled_task(args: Dict[str, Any]) -> Dict[str, Any]:
     from app.database import async_session_factory
 
     async with async_session_factory() as session:
+        payload_val = json.dumps(args.get("payload", {})) if args.get("payload") else None
         result = await session.execute(
             text("""
                 INSERT INTO scheduled_tasks (task_type, reference_id, scheduled_at, payload)
-                VALUES (:task_type, :reference_id, :scheduled_at, :payload::jsonb)
+                VALUES (:task_type, :reference_id, :scheduled_at, CAST(:payload AS jsonb))
                 RETURNING id
             """),
             {
                 "task_type": args["task_type"],
                 "reference_id": args.get("reference_id"),
                 "scheduled_at": args["scheduled_at"],
-                "payload": json.dumps(args.get("payload", {})) if args.get("payload") else None,
+                "payload": payload_val,
             },
         )
         new_id = result.scalar()

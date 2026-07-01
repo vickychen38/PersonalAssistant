@@ -50,6 +50,7 @@ async def get_accounting_summary(month: Optional[str] = None) -> Dict[str, Any]:
                        COALESCE(SUM(a.amount), 0) AS spent
                 FROM budget_categories bc
                 LEFT JOIN accounting a ON bc.id = a.category_id AND a.month = :month
+                WHERE bc.month = :month
                 GROUP BY bc.id, bc.name, bc.monthly_budget
                 ORDER BY spent DESC
             """),
@@ -81,6 +82,7 @@ async def get_budget_status() -> List[Dict[str, Any]]:
                        COALESCE(SUM(a.amount), 0) AS spent
                 FROM budget_categories bc
                 LEFT JOIN accounting a ON bc.id = a.category_id AND a.month = :month
+                WHERE bc.month = :month
                 GROUP BY bc.id
                 ORDER BY spent DESC
             """),
@@ -135,16 +137,20 @@ async def create_accounting_entry(data: CreateAccountingEntryInput) -> Dict[str,
 
 
 async def create_budget_category(data: CreateBudgetCategoryInput) -> Dict[str, Any]:
-    """创建预算类目。"""
+    """创建预算类目。month 默认当前月 (YYYY-MM)。"""
+    today = date.today()
+    month = today.strftime("%Y-%m")
+
     async with async_session_factory() as session:
         result = await session.execute(
             text("""
-                INSERT INTO budget_categories (name, monthly_budget, alert_threshold)
-                VALUES (:name, :monthly_budget, :alert_threshold)
+                INSERT INTO budget_categories (name, month, monthly_budget, alert_threshold)
+                VALUES (:name, :month, :monthly_budget, :alert_threshold)
                 RETURNING id
             """),
             {
                 "name": data.name,
+                "month": month,
                 "monthly_budget": data.monthly_budget,
                 "alert_threshold": data.alert_threshold or 0.80,
             },

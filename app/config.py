@@ -32,6 +32,7 @@ class Config(BaseSettings):
 
     # ---- cc-connect ----
     cc_connect_api_url: str = "http://localhost:9527"
+    cc_connect_project: str = "assistant-relay"
     cc_connect_webhook_secret: str = ""
     wechat_user_id: str = ""
 

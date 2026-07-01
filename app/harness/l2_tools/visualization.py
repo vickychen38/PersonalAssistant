@@ -218,12 +218,13 @@ async def _fetch_chart_data(chart_type: str) -> Dict[str, Any]:
             return {"labels": [row[0] for row in rows], "values": [float(row[1]) for row in rows]}
 
         elif chart_type == "budget_usage":
+            month = today.strftime("%Y-%m")
             r = await s.execute(
                 text("SELECT bc.name, bc.monthly_budget, "
                      "COALESCE((SELECT SUM(a.amount) FROM accounting a "
                      "WHERE a.category_id = bc.id AND a.month = :month), 0) "
-                     "FROM budget_categories bc ORDER BY bc.name"),
-                {"month": today.strftime("%Y-%m")},
+                     "FROM budget_categories bc WHERE bc.month = :month ORDER BY bc.name"),
+                {"month": month},
             )
             rows = r.fetchall()
             if not rows:

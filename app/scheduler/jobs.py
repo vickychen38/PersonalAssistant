@@ -26,6 +26,16 @@ def _today() -> date:
     return date.today()
 
 
+def _push_context():
+    """获取主动推送所需的 session_key 和 project，缺失时回退到 config 默认值。"""
+    from app.services.context_store import get_last_context
+    ctx = get_last_context()
+    return {
+        "session_key": ctx.get("session_key", "") or "",
+        "project": ctx.get("project") or config.cc_connect_project,
+    }
+
+
 def _parse_time(val) -> time | None:
     """将字符串或 time 对象统一为 time 对象（Python 3.14 asyncpg 兼容）。"""
     if val is None:
@@ -60,7 +70,7 @@ async def daily_todo_gen():
         # 查询所有 active 的 todos（含时间和时长信息）
         result = await session.execute(
             text("""
-                SELECT id, type, recurrence_rule, scheduled_at,
+                SELECT id, title, type, recurrence_rule, scheduled_at,
                        scheduled_time, duration_minutes
                 FROM todos WHERE status = 'active'
             """)
@@ -70,7 +80,7 @@ async def daily_todo_gen():
         followup_count = 0
 
         for todo in todos:
-            todo_id, todo_type, rule, sched_at, sched_time, duration = todo
+            todo_id, todo_title, todo_type, rule, sched_at, sched_time, duration = todo
             should_create = False
             effective_time = sched_time  # 默认用 todo 级时间
 
@@ -143,24 +153,49 @@ async def daily_todo_gen():
                     effective_duration = duration
                     if rule and not effective_duration:
                         effective_duration = rule.get("duration_minutes")
-                    if effective_time and effective_duration:
+                    if effective_time:
                         import json
                         pt = _parse_time(effective_time)
-                        followup_dt = datetime.combine(today, pt) + timedelta(minutes=effective_duration)
+                        start_dt = datetime.combine(today, pt)
+
+                        # 1) 开始提醒 — 到点提醒用户开始做
+                        reminder_msg = f"⏰ 该做「{todo_title}」了"
+                        if effective_duration:
+                            reminder_msg += f"（预计 {effective_duration} 分钟）"
                         await session.execute(
                             text("""
                                 INSERT INTO scheduled_tasks
                                     (task_type, reference_id, scheduled_at, payload)
                                 VALUES
-                                    ('todo_followup', :ref_id, :followup_at, CAST(:payload AS jsonb))
+                                    ('todo_reminder', :ref_id, :start_at, CAST(:payload AS jsonb))
                             """),
                             {
                                 "ref_id": instance_id,
-                                "followup_at": followup_dt,
-                                "payload": json.dumps({"todo_id": todo_id}),
+                                "start_at": start_dt,
+                                "payload": json.dumps({
+                                    "todo_id": todo_id,
+                                    "message": reminder_msg,
+                                }),
                             },
                         )
-                        followup_count += 1
+
+                        # 2) 结束跟进 — 任务该结束时问完成情况
+                        if effective_duration:
+                            followup_dt = start_dt + timedelta(minutes=effective_duration)
+                            await session.execute(
+                                text("""
+                                    INSERT INTO scheduled_tasks
+                                        (task_type, reference_id, scheduled_at, payload)
+                                    VALUES
+                                        ('todo_followup', :ref_id, :followup_at, CAST(:payload AS jsonb))
+                                """),
+                                {
+                                    "ref_id": instance_id,
+                                    "followup_at": followup_dt,
+                                    "payload": json.dumps({"todo_id": todo_id}),
+                                },
+                            )
+                            followup_count += 1
 
         await session.commit()
         logger.info(
@@ -333,13 +368,12 @@ async def morning_briefing():
     # 8. 发送
     try:
         from app.services.cconnect import send_text
-        from app.services.context_store import get_last_context
-        ctx = get_last_context()
+        pc = _push_context()
         ok = await send_text(
             message,
             to_user=config.wechat_user_id,
-            session_key=ctx["session_key"],
-            project=ctx["project"],
+            session_key=pc["session_key"],
+            project=pc["project"],
         )
         if ok:
             logger.info("晨报已发送")
@@ -355,21 +389,21 @@ async def morning_briefing():
 
 async def todo_followup_scanner():
     """
-    每分钟扫描 scheduled_tasks，执行到期的 todo_followup。
+    每分钟扫描 scheduled_tasks，执行到期的 todo_reminder 和 todo_followup。
 
     流程：
-      1. 查询 status=pending, task_type=todo_followup, scheduled_at <= NOW()
-      2. 对每条：发送跟进消息
+      1. 查询 status=pending, task_type IN ('todo_reminder','todo_followup'), scheduled_at <= NOW()
+      2. 对每条：发送提醒/跟进消息
       3. 更新 status=sent
     """
     async with async_session_factory() as session:
         result = await session.execute(
             text("""
-                SELECT st.id, st.reference_id, st.payload,
+                SELECT st.id, st.task_type, st.reference_id, st.payload,
                        ti.todo_id
                 FROM scheduled_tasks st
                 JOIN todo_instances ti ON st.reference_id = ti.id
-                WHERE st.task_type = 'todo_followup'
+                WHERE st.task_type IN ('todo_reminder', 'todo_followup')
                   AND st.status = 'pending'
                   AND st.scheduled_at <= NOW()
                 ORDER BY st.scheduled_at
@@ -379,7 +413,7 @@ async def todo_followup_scanner():
         tasks = result.fetchall()
 
         for task in tasks:
-            task_id, instance_id, payload, todo_id = task
+            task_id, task_type, instance_id, payload, todo_id = task
 
             # 获取 todo 信息
             result2 = await session.execute(
@@ -391,32 +425,40 @@ async def todo_followup_scanner():
                 continue
 
             title = todo_row[0]
-            message = f"你的「{title}」应该刚结束，完成了吗？"
 
-            # 重复未完成检测
-            result3 = await session.execute(
-                text("""
-                    SELECT COUNT(*) FROM todo_instances ti2
-                    JOIN scheduled_tasks st2 ON st2.reference_id = ti2.id
-                    WHERE ti2.todo_id = :todo_id
-                      AND ti2.scheduled_at >= CURRENT_DATE - INTERVAL '7 days'
-                      AND ti2.status IN ('cancelled', 'postponed')
-                """),
-                {"todo_id": todo_id},
-            )
-            cancel_count = result3.scalar()
-            if cancel_count and cancel_count >= 3:
-                message += " 这个任务最近有几次没完成，需要调整一下吗？"
+            # 区分消息类型
+            if task_type == "todo_reminder":
+                # 优先用 payload 里预设的消息
+                msg = (payload or {}).get("message") if isinstance(payload, dict) else None
+                if not msg:
+                    msg = f"⏰ 该做「{title}」了！"
+            else:
+                # todo_followup — 原有的跟进逻辑
+                msg = f"你的「{title}」应该刚结束，完成了吗？"
+
+                # 重复未完成检测
+                result3 = await session.execute(
+                    text("""
+                        SELECT COUNT(*) FROM todo_instances ti2
+                        JOIN scheduled_tasks st2 ON st2.reference_id = ti2.id
+                        WHERE ti2.todo_id = :todo_id
+                          AND ti2.scheduled_at >= CURRENT_DATE - INTERVAL '7 days'
+                          AND ti2.status IN ('cancelled', 'postponed')
+                    """),
+                    {"todo_id": todo_id},
+                )
+                cancel_count = result3.scalar()
+                if cancel_count and cancel_count >= 3:
+                    msg += " 这个任务最近有几次没完成，需要调整一下吗？"
 
             # 发送
             try:
                 from app.services.cconnect import send_text
-                from app.services.context_store import get_last_context
-                ctx = get_last_context()
-                await send_text(message, to_user=config.wechat_user_id, session_key=ctx["session_key"], project=ctx["project"])
-                logger.info(f"Todo 跟进已发送: todo_id={todo_id}")
+                pc = _push_context()
+                await send_text(msg, to_user=config.wechat_user_id, session_key=pc["session_key"], project=pc["project"])
+                logger.info(f"Todo 消息已发送: type={task_type} todo_id={todo_id}")
             except Exception as e:
-                logger.error(f"Todo 跟进发送失败: {e}")
+                logger.error(f"Todo 消息发送失败: {e}")
                 continue
 
             # 更新状态
@@ -431,7 +473,7 @@ async def todo_followup_scanner():
 
         await session.commit()
         if tasks:
-            logger.info(f"Todo 跟进扫描完成，处理了 {len(tasks)} 条")
+            logger.info(f"Todo 扫描完成，处理了 {len(tasks)} 条")
 
 
 # ============================================================
@@ -523,9 +565,8 @@ async def evening_review():
 
     try:
         from app.services.cconnect import send_text
-        from app.services.context_store import get_last_context
-        ctx = get_last_context()
-        ok = await send_text(msg, to_user=config.wechat_user_id, session_key=ctx["session_key"], project=ctx["project"])
+        pc = _push_context()
+        ok = await send_text(msg, to_user=config.wechat_user_id, session_key=pc["session_key"], project=pc["project"])
         if ok:
             logger.info(f"晚间复盘已发送: session_id={session_id}")
         else:
@@ -585,9 +626,8 @@ async def weekly_retro_check():
 
     try:
         from app.services.cconnect import send_text
-        from app.services.context_store import get_last_context
-        ctx = get_last_context()
-        await send_text(msg, to_user=config.wechat_user_id, session_key=ctx["session_key"], project=ctx["project"])
+        pc = _push_context()
+        await send_text(msg, to_user=config.wechat_user_id, session_key=pc["session_key"], project=pc["project"])
         logger.info("周复盘触发消息已发送")
     except Exception as e:
         logger.error(f"周复盘发送失败: {e}")
@@ -642,9 +682,8 @@ async def monthly_retro_check():
 
     try:
         from app.services.cconnect import send_text
-        from app.services.context_store import get_last_context
-        ctx = get_last_context()
-        await send_text(msg, to_user=config.wechat_user_id, session_key=ctx["session_key"], project=ctx["project"])
+        pc = _push_context()
+        await send_text(msg, to_user=config.wechat_user_id, session_key=pc["session_key"], project=pc["project"])
         logger.info("月复盘触发消息已发送")
     except Exception as e:
         logger.error(f"月复盘发送失败: {e}")

@@ -33,10 +33,13 @@ LOG_FMT = "[%(levelname)s] [%(asctime)s] [%(name)s] %(message)s"
 
 file_handler.setFormatter(_MillisFormatter(LOG_FMT))
 
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(_MillisFormatter(LOG_FMT))
+
 logging.basicConfig(
     level=logging.INFO,
     format=LOG_FMT,
-    handlers=[logging.StreamHandler(_MillisFormatter(LOG_FMT)), file_handler],
+    handlers=[console_handler, file_handler],
 )
 logger = logging.getLogger("main")
 

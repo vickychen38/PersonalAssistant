@@ -1,5 +1,25 @@
 # 更新日志
 
+## v1.6 — 2026-07-01
+
+### 修复
+- **P0：主动推送全部失败**：cc-connect 上下文存储了测试假数据（`project: "PA"`、`session_key: "partial_test"`），导致调度器（晨报/晚间复盘/待办提醒/周月复盘）所有推送返回 404。清除假数据，新增 `cc_connect_project` 配置项，所有推送改用 `_push_context()` 从 config 回退
+- **P0：`create_scheduled_task` SQL 语法错误**：`:payload::jsonb` 异步驱动不兼容，改为 `CAST(:payload AS jsonb)`
+- **P1：任务到点无提醒**：系统只会在任务结束后发跟进（"做完了吗？"），缺少开始提醒。`daily_todo_gen` 现在为每个有时间的任务创建两条 scheduled_task：`todo_reminder`（到点提醒）+ `todo_followup`（结束后跟进）
+- **P1：StreamHandler 启动错误**：`logging.StreamHandler(_MillisFormatter(...))` 参数传错，改为先创建 handler 再 setFormatter，消除启动时的 `AttributeError: '_MillisFormatter' object has no attribute 'write'`
+- **P2：Webhook ACP relay 兼容**：ACP agent 的 webhook payload 用 `session_id` 而非 `session_key`，导致 `save_webhook_context` 始终收到空值跳过保存
+
+### 新增
+- 预算表 `budget_categories` 新增 `month` 字段（YYYY-MM），支持每月独立预算。同月同名类目唯一约束。`create_budget_category` 自动填入当前月份，查询函数按月份过滤
+- 配置新增 `cc_connect_project` 项，默认值 `"assistant-relay"`
+
+### 清理
+- 数据库去重：删除重复记账（ID 5 日用）、重复 todo（测评豆包 ID 9）、重复目标（ID 1）、recurring 私教课（ID 4,5）
+- 体重表仅保留 6/30 和 7/1 数据
+- `todo_followup_scanner` 重构：统一处理 `todo_reminder` 和 `todo_followup` 两种 task_type
+
+---
+
 ## v1.5 — 2026-06-30
 
 ### 修复

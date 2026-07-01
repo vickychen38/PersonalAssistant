@@ -18,7 +18,8 @@ class BudgetCategory(Base):
     __tablename__ = "budget_categories"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    month: Mapped[str] = mapped_column(String(7), nullable=False)
     monthly_budget: Mapped[Optional[Decimal]] = mapped_column(
         Numeric(10, 2), nullable=True
     )
